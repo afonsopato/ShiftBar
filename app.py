@@ -1,5 +1,5 @@
 import streamlit as st
-import sqlite3
+import psycopg2
 import pandas as pd
 import datetime
 import calendar
@@ -10,19 +10,46 @@ import math
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Sick渋谷 - Shift Manager", page_icon="🍻", layout="wide")
 
-# --- 2. BANCO DE DADOS ---
+# --- 2. CONEXÃO COM O BANCO EM NUVEM (POSTGRESQL) ---
+# Ele puxa a URL secreta que você configurou no Streamlit Secrets
+@st.cache_resource
+def get_conn():
+    return psycopg2.connect(st.secrets["DATABASE_URL"])
+
 def criar_banco_de_dados():
-    conn = sqlite3.connect('bar_dados.db')
+    conn = get_conn()
     cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS funcionarios (id INTEGER PRIMARY KEY AUTOINCREMENT, codigo TEXT UNIQUE, nome TEXT NOT NULL, nivel TEXT NOT NULL, role TEXT DEFAULT 'staff', senha TEXT NOT NULL, primeiro_acesso INTEGER DEFAULT 1)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS disponibilidades (id INTEGER PRIMARY KEY AUTOINCREMENT, funcionario_id INTEGER, data TEXT NOT NULL, status TEXT NOT NULL, hora_inicio TEXT, hora_fim TEXT, UNIQUE(funcionario_id, data))''')
+    # Sintaxe adaptada para o PostgreSQL (Uso de SERIAL em vez de AUTOINCREMENT)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS funcionarios (
+            id SERIAL PRIMARY KEY,
+            codigo VARCHAR UNIQUE,
+            nome VARCHAR NOT NULL,
+            nivel VARCHAR NOT NULL,
+            role VARCHAR DEFAULT 'staff',
+            senha VARCHAR NOT NULL,
+            primeiro_acesso INTEGER DEFAULT 1
+        )
+    ''')
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS disponibilidades (
+            id SERIAL PRIMARY KEY,
+            funcionario_id INTEGER,
+            data VARCHAR NOT NULL,
+            status VARCHAR NOT NULL,
+            hora_inicio VARCHAR,
+            hora_fim VARCHAR,
+            UNIQUE(funcionario_id, data)
+        )
+    ''')
     cursor.execute("SELECT COUNT(*) FROM funcionarios")
     if cursor.fetchone()[0] == 0:
         cursor.execute("INSERT INTO funcionarios (codigo, nome, nivel, role, senha, primeiro_acesso) VALUES ('admin', 'Gerente Master', 'Veteran', 'manager', 'sick1234', 1)")
         cursor.execute("INSERT INTO funcionarios (codigo, nome, nivel, role, senha, primeiro_acesso) VALUES ('tester', 'Conta de Teste', 'Normal', 'tester', 'tester', 0)")
     conn.commit()
-    conn.close()
+    cursor.close()
 
+# Roda a verificação de criação sempre que o app inicia
 criar_banco_de_dados()
 
 # --- FUNÇÕES DE TEMPO E LÓGICA ---
@@ -125,8 +152,12 @@ if not st.session_state['logado']:
         cod_input = st.text_input(t["code"]).strip().lower()
         senha_input = st.text_input(t["pass"], type="password")
         if st.form_submit_button(t["login_btn"]):
-            conn = sqlite3.connect('bar_dados.db')
-            usuario = conn.cursor().execute("SELECT id, nome, role, primeiro_acesso FROM funcionarios WHERE LOWER(codigo)=? AND senha=?", (cod_input, senha_input)).fetchone()
+            conn = get_conn()
+            cursor = conn.cursor()
+            # No PostgreSQL usamos %s em vez de ?
+            cursor.execute("SELECT id, nome, role, primeiro_acesso FROM funcionarios WHERE LOWER(codigo)=%s AND senha=%s", (cod_input, senha_input))
+            usuario = cursor.fetchone()
+            cursor.close()
             conn.close()
             if usuario:
                 st.session_state.update({'logado': True, 'user_id': usuario[0], 'user_nome': usuario[1], 'role': usuario[2], 'primeiro_acesso': usuario[3]})
@@ -140,9 +171,11 @@ elif st.session_state['primeiro_acesso'] == 1:
         c_senha = st.text_input(t["confirm_pass"], type="password")
         if st.form_submit_button(t["save_pass"]):
             if len(n_senha) >= 6 and n_senha == c_senha:
-                conn = sqlite3.connect('bar_dados.db')
-                conn.cursor().execute("UPDATE funcionarios SET senha=?, primeiro_acesso=0 WHERE id=?", (n_senha, st.session_state['user_id']))
+                conn = get_conn()
+                cursor = conn.cursor()
+                cursor.execute("UPDATE funcionarios SET senha=%s, primeiro_acesso=0 WHERE id=%s", (n_senha, st.session_state['user_id']))
                 conn.commit()
+                cursor.close()
                 conn.close()
                 st.session_state['primeiro_acesso'] = 0
                 st.rerun()
@@ -200,10 +233,18 @@ else:
         if st.button(t["btn_submit_shift"], use_container_width=True):
             if st.session_state['role'] == 'tester': st.error("Testers cannot save data!")
             else:
-                conn = sqlite3.connect('bar_dados.db')
+                conn = get_conn()
                 cursor = conn.cursor()
-                for dia, info in respostas.items(): cursor.execute('REPLACE INTO disponibilidades (funcionario_id, data, status, hora_inicio, hora_fim) VALUES (?, ?, ?, ?, ?)', (st.session_state['user_id'], info["data"], info["status"], info["in"], info["out"]))
+                for dia, info in respostas.items():
+                    # Sintaxe de REPLACE INTO traduzida para PostgreSQL (ON CONFLICT)
+                    cursor.execute('''
+                        INSERT INTO disponibilidades (funcionario_id, data, status, hora_inicio, hora_fim) 
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON CONFLICT (funcionario_id, data) 
+                        DO UPDATE SET status = EXCLUDED.status, hora_inicio = EXCLUDED.hora_inicio, hora_fim = EXCLUDED.hora_fim
+                    ''', (st.session_state['user_id'], info["data"], info["status"], info["in"], info["out"]))
                 conn.commit()
+                cursor.close()
                 conn.close()
                 st.success(t["shift_success"])
 
@@ -223,7 +264,7 @@ else:
         if quinzena == t["period_1"]: d_in, d_out = f"{ano}-{mes:02d}-01", f"{ano}-{mes:02d}-15"
         else: d_in, d_out = f"{ano}-{mes:02d}-16", f"{ano}-{mes:02d}-{calendar.monthrange(ano, mes)[1]:02d}"
         st.divider()
-        conn = sqlite3.connect('bar_dados.db')
+        conn = get_conn()
         df_staff = pd.read_sql_query("SELECT id, nome, codigo FROM funcionarios WHERE role IN ('staff', 'manager')", conn)
         df_envios = pd.read_sql_query(f"SELECT funcionario_id, COUNT(*) as dias FROM disponibilidades WHERE data >= '{d_in}' AND data <= '{d_out}' GROUP BY funcionario_id", conn)
         conn.close()
@@ -237,6 +278,7 @@ else:
     # ---------------------------------------------------------
     elif menu == t["menu_generate"]:
         st.title(t["gen_title"])
+        
         hoje = datetime.date.today()
         opcoes_mes = [(hoje.replace(day=1) + datetime.timedelta(days=31*i)).replace(day=1) for i in range(3)]
         nomes_meses = [f"{m.strftime('%B %Y')}" for m in opcoes_mes]
@@ -252,15 +294,17 @@ else:
         st.divider()
 
         if st.button(t["btn_gen"], use_container_width=True):
-            conn = sqlite3.connect('bar_dados.db')
+            conn = get_conn()
             df_staff = pd.read_sql_query("SELECT id, nome, nivel FROM funcionarios", conn)
             dict_niveis = dict(zip(df_staff['id'], df_staff['nivel']))
             dict_nomes = dict(zip(df_staff['id'], df_staff['nome']))
+            
             query = f"SELECT * FROM disponibilidades WHERE data >= '{data_inicio_str}' AND data <= '{data_fim_str}'"
             df_disp = pd.read_sql_query(query, conn)
             conn.close()
 
-            if df_disp.empty: st.warning("⚠️ Ninguém enviou horários para este período!")
+            if df_disp.empty:
+                st.warning("⚠️ Ninguém enviou horários para este período!")
             else:
                 horas_oferecidas = {}
                 for _, row in df_disp[df_disp['status'] == 'disponivel'].iterrows():
@@ -319,12 +363,16 @@ else:
                         
                         slot_anterior = horarios_do_dia[i-1] if i > 0 else None
                         se_trabalhava_antes = trabalhando_no_slot[slot_anterior] if slot_anterior else []
+                        
                         for f in se_trabalhava_antes:
-                            if f in livres_agora and len(selecionados) < target: selecionados.append(f)
+                            if f in livres_agora and len(selecionados) < target:
+                                selecionados.append(f)
                                 
                         if len(selecionados) < target:
                             candidatos = [f for f in livres_agora if f not in selecionados]
-                            if slot_atual == "18:30": candidatos = [f for f in candidatos if dict_niveis[f] in ['Veteran', 'Normal']]
+                            if slot_atual == "18:30":
+                                candidatos = [f for f in candidatos if dict_niveis[f] in ['Veteran', 'Normal']]
+                                
                             seguranca_ok = check_seguranca(selecionados)
                             
                             candidatos.sort(key=lambda x: (
@@ -342,6 +390,7 @@ else:
                             rookies_selecionados = [f for f in selecionados if dict_niveis[f] == 'Rookie']
                             salvadores = [f for f in livres_agora if f not in selecionados and dict_niveis[f] in ['Veteran', 'Normal']]
                             salvadores.sort(key=lambda x: horas_atribuidas.get(x, 0) / multiplicadores.get(x, 1.0)) 
+                            
                             if rookies_selecionados and salvadores:
                                 selecionados.remove(rookies_selecionados[0])
                                 selecionados.append(salvadores[0])
@@ -352,9 +401,13 @@ else:
                             horas_atribuidas[f] += 1 
                             
                     for f_id, slots in slots_atribuidos_no_dia.items():
-                        if len(slots) > 0: matriz_escala[f_id][dia] = f"{slots[0]} - {add_30_mins(slots[-1])}"
+                        if len(slots) > 0:
+                            inicio = slots[0]
+                            fim = add_30_mins(slots[-1])
+                            matriz_escala[f_id][dia] = f"{inicio} - {fim}"
                         elif f_id in disp_trabalho['funcionario_id'].values:
-                            if matriz_escala[f_id].get(dia) != t["yasumi_label"]: matriz_escala[f_id][dia] = t["off_label"]
+                            if matriz_escala[f_id].get(dia) != t["yasumi_label"]:
+                                matriz_escala[f_id][dia] = t["off_label"]
 
                 df_pivot = pd.DataFrame(matriz_escala).T
                 df_pivot.reset_index(inplace=True)
@@ -367,20 +420,37 @@ else:
                 for col in df_final.columns:
                     if "20" in col:
                         data_dt = datetime.datetime.strptime(col, "%Y-%m-%d")
-                        df_final.rename(columns={col: data_dt.strftime("%d (%a)")}, inplace=True)
+                        nome_curto = data_dt.strftime("%d (%a)")
+                        df_final.rename(columns={col: nome_curto}, inplace=True)
                 
                 df_final = df_final.dropna(thresh=3).fillna("-")
+
                 st.success("✅ " + t["gen_title"] + " Concluído! Sistema Ponderado Ativado.")
                 
                 col_tabela, col_horas = st.columns([3, 1])
-                with col_tabela: st.dataframe(df_final, use_container_width=True)
+                
+                with col_tabela:
+                    st.dataframe(df_final, use_container_width=True)
+                    
                 with col_horas:
                     st.markdown(f"**{t['allocated_hours']}**")
-                    dados_horas = [{"Nome": dict_nomes[f_id], "Mult. (0.85 a 1.0)": round(multiplicadores.get(f_id, 1.0), 3), t["total_hours"]: slots * 0.5} for f_id, slots in horas_atribuidas.items() if f_id in horas_oferecidas]
-                    if dados_horas: st.dataframe(pd.DataFrame(dados_horas).sort_values(by="Mult. (0.85 a 1.0)", ascending=False), hide_index=True, use_container_width=True)
+                    dados_horas = []
+                    for f_id, slots in horas_atribuidas.items():
+                        if f_id in horas_oferecidas: 
+                            dados_horas.append({
+                                "Nome": dict_nomes[f_id], 
+                                "Mult. (0.85 a 1.0)": round(multiplicadores.get(f_id, 1.0), 3),
+                                t["total_hours"]: slots * 0.5
+                            })
+                    
+                    if dados_horas:
+                        df_horas = pd.DataFrame(dados_horas).sort_values(by="Mult. (0.85 a 1.0)", ascending=False)
+                        st.dataframe(df_horas, hide_index=True, use_container_width=True)
 
                 buffer = io.BytesIO()
-                with pd.ExcelWriter(buffer, engine='openpyxl') as writer: df_final.to_excel(writer, index=False, sheet_name='Escala Inteligente')
+                with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                    df_final.to_excel(writer, index=False, sheet_name='Escala Inteligente')
+                
                 st.download_button(label=t["btn_download"], data=buffer.getvalue(), file_name=f"Escala_Sick_{mes_selecionado_str}_{quinzena}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary")
 
     # ---------------------------------------------------------
@@ -389,24 +459,31 @@ else:
     elif menu == t["menu_add_staff"]:
         st.title(t["add_staff_title"])
         if st.session_state['role'] == 'tester': st.warning(t["tester_alert"])
-        conn = sqlite3.connect('bar_dados.db')
+        conn = get_conn()
         df = pd.read_sql_query("SELECT id, codigo, nome, nivel, role FROM funcionarios", conn)
+        conn.close()
+        
         df_show = df[["codigo", "nome", "role"]] if st.session_state['role'] == 'tester' else df[["codigo", "nome", "nivel", "role"]]
         if not df_show.empty: st.dataframe(df_show.rename(columns={"codigo": "Code", "nome": t["col_name"], "nivel": t["col_level"], "role": "Role"}), hide_index=True, use_container_width=True)
 
         if st.session_state['role'] == 'manager':
+            # --- ADICIONAR ---
             with st.expander("➕ " + t["add_staff_title"]):
                 with st.form("form_add"):
                     nome, nivel, tipo_conta = st.text_input(t["staff_name"]), st.selectbox(t["staff_level"], ["Rookie", "Normal", "Veteran"]), st.selectbox(t["role_label"], ["Staff", "Manager"])
                     if st.form_submit_button(t["btn_add"]) and nome != "":
+                        conn = get_conn()
                         cursor = conn.cursor()
-                        cursor.execute("INSERT INTO funcionarios (codigo, nome, nivel, role, senha, primeiro_acesso) VALUES ('temp', ?, ?, ?, 'sick1234', 1)", (nome, nivel, "manager" if tipo_conta == "Manager" else "staff"))
-                        id_novo = cursor.lastrowid
-                        cursor.execute("UPDATE funcionarios SET codigo=? WHERE id=?", (f"sk{id_novo:03d}", id_novo))
+                        cursor.execute("INSERT INTO funcionarios (codigo, nome, nivel, role, senha, primeiro_acesso) VALUES ('temp', %s, %s, %s, 'sick1234', 1) RETURNING id", (nome, nivel, "manager" if tipo_conta == "Manager" else "staff"))
+                        id_novo = cursor.fetchone()[0]
+                        cursor.execute("UPDATE funcionarios SET codigo=%s WHERE id=%s", (f"sk{id_novo:03d}", id_novo))
                         conn.commit()
+                        cursor.close()
+                        conn.close()
                         st.success(t["staff_created"].format(codigo=f"sk{id_novo:03d}"))
                         st.rerun()
 
+            # --- EDITAR (COM REBAIXAMENTO DE CARGO) ---
             if not df.empty:
                 with st.expander("✏️ " + t["edit_staff_title"]):
                     opcoes_edit = df['nome'] + " (" + df['codigo'] + ")"
@@ -417,18 +494,22 @@ else:
                         n_nome = st.text_input(t["staff_name"], value=df.iloc[idx]['nome'])
                         n_nivel = st.selectbox(t["staff_level"], ["Rookie", "Normal", "Veteran"], index=["Rookie", "Normal", "Veteran"].index(df.iloc[idx]['nivel']))
                         
-                        # A trava mestre de segurança: o ADMIN nunca perde o cargo
+                        # Trava de Segurança Mestra: o 'admin' original não pode ser rebaixado
                         is_master_admin = (df.iloc[idx]['codigo'] == 'admin')
                         n_tipo = st.selectbox(t["role_label"], ["Staff", "Manager"], index=1 if df.iloc[idx]['role'] == 'manager' else 0, disabled=is_master_admin)
                         
                         if st.form_submit_button(t["btn_edit"]):
-                            conn.cursor().execute("UPDATE funcionarios SET nome=?, nivel=?, role=? WHERE id=?", (n_nome, n_nivel, 'manager' if n_tipo == 'Manager' else 'staff', int(df.iloc[idx]['id'])))
+                            conn = get_conn()
+                            cursor = conn.cursor()
+                            cursor.execute("UPDATE funcionarios SET nome=%s, nivel=%s, role=%s WHERE id=%s", (n_nome, n_nivel, 'manager' if n_tipo == 'Manager' else 'staff', int(df.iloc[idx]['id'])))
                             conn.commit()
+                            cursor.close()
+                            conn.close()
                             st.success(t["edit_success"])
                             st.rerun()
 
-            # --- NOVO: EXCLUIR FUNCIONÁRIO ---
-            df_delete = df[df['codigo'] != 'admin'] # O Admin nunca aparece na lista de deleção
+            # --- EXCLUIR FUNCIONÁRIO ---
+            df_delete = df[df['codigo'] != 'admin'] 
             if not df_delete.empty:
                 with st.expander("🗑️ " + t["delete_staff_title"]):
                     sel_del = st.selectbox(t["select_staff"], (df_delete['nome'] + " (" + df_delete['codigo'] + ")").tolist(), key="del_sel")
@@ -436,22 +517,30 @@ else:
                     if st.button(t["btn_delete"]):
                         idx_del = (df_delete['nome'] + " (" + df_delete['codigo'] + ")").tolist().index(sel_del)
                         id_alvo = int(df_delete.iloc[idx_del]['id'])
-                        conn.cursor().execute("DELETE FROM funcionarios WHERE id=?", (id_alvo,))
-                        conn.cursor().execute("DELETE FROM disponibilidades WHERE funcionario_id=?", (id_alvo,))
+                        conn = get_conn()
+                        cursor = conn.cursor()
+                        cursor.execute("DELETE FROM funcionarios WHERE id=%s", (id_alvo,))
+                        cursor.execute("DELETE FROM disponibilidades WHERE funcionario_id=%s", (id_alvo,))
                         conn.commit()
+                        cursor.close()
+                        conn.close()
                         st.success(t["delete_success"])
                         st.rerun()
 
+            # --- RESETAR SENHA ---
             df_res = df[df['role'] != 'manager'] 
             if not df_res.empty:
                 with st.expander("🔑 " + t["reset_pass_title"]):
-                    sel_res = st.selectbox(t["select_staff"], (df_res['nome'] + " (" + df_res['codigo'] + ")").tolist())
+                    sel_res = st.selectbox(t["select_staff"], (df_res['nome'] + " (" + df_res['codigo'] + ")").tolist(), key="res_sel")
                     if st.button(t["btn_reset"]):
                         idx_res = (df_res['nome'] + " (" + df_res['codigo'] + ")").tolist().index(sel_res)
-                        conn.cursor().execute("UPDATE funcionarios SET senha='sick1234', primeiro_acesso=1 WHERE id=?", (int(df_res.iloc[idx_res]['id']),))
+                        conn = get_conn()
+                        cursor = conn.cursor()
+                        cursor.execute("UPDATE funcionarios SET senha='sick1234', primeiro_acesso=1 WHERE id=%s", (int(df_res.iloc[idx_res]['id']),))
                         conn.commit()
+                        cursor.close()
+                        conn.close()
                         st.success(t["reset_success"].format(nome=df_res.iloc[idx_res]['nome']))
-        conn.close()
 
     # ---------------------------------------------------------
     # ABA 5: MUDAR SENHA (STAFF)
@@ -461,12 +550,16 @@ else:
         with st.form("form_change_pass"):
             s_ant, n_sen, c_sen = st.text_input(t["old_pass"], type="password"), st.text_input(t["new_pass"], type="password"), st.text_input(t["confirm_pass"], type="password")
             if st.form_submit_button(t["save_pass"]):
-                conn = sqlite3.connect('bar_dados.db')
-                s_bd = conn.cursor().execute("SELECT senha FROM funcionarios WHERE id=?", (st.session_state['user_id'],)).fetchone()[0]
+                conn = get_conn()
+                cursor = conn.cursor()
+                cursor.execute("SELECT senha FROM funcionarios WHERE id=%s", (st.session_state['user_id'],))
+                s_bd = cursor.fetchone()[0]
+                
                 if s_ant != s_bd: st.error("❌ Erro.")
                 elif len(n_sen) < 6 or n_sen != c_sen: st.error("⚠️ Senha inválida.")
                 else:
-                    conn.cursor().execute("UPDATE funcionarios SET senha=? WHERE id=?", (n_sen, st.session_state['user_id']))
+                    cursor.execute("UPDATE funcionarios SET senha=%s WHERE id=%s", (n_sen, st.session_state['user_id']))
                     conn.commit()
                     st.success(t["pass_success"])
+                cursor.close()
                 conn.close()
