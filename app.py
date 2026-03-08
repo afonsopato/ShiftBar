@@ -10,8 +10,7 @@ import math
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Sick渋谷 - Shift Manager", page_icon="🍻", layout="wide")
 
-# --- 2. CONEXÃO COM O BANCO EM NUVEM (POSTGRESQL) ---
-# Ele puxa a URL secreta que você configurou no Streamlit Secrets
+# --- 2. BANCO DE DADOS (COM AUTO-ATUALIZAÇÃO) ---
 @st.cache_resource
 def get_conn():
     return psycopg2.connect(st.secrets["DATABASE_URL"])
@@ -19,37 +18,28 @@ def get_conn():
 def criar_banco_de_dados():
     conn = get_conn()
     cursor = conn.cursor()
-    # Sintaxe adaptada para o PostgreSQL (Uso de SERIAL em vez de AUTOINCREMENT)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS funcionarios (
-            id SERIAL PRIMARY KEY,
-            codigo VARCHAR UNIQUE,
-            nome VARCHAR NOT NULL,
-            nivel VARCHAR NOT NULL,
-            role VARCHAR DEFAULT 'staff',
-            senha VARCHAR NOT NULL,
-            primeiro_acesso INTEGER DEFAULT 1
-        )
-    ''')
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS disponibilidades (
-            id SERIAL PRIMARY KEY,
-            funcionario_id INTEGER,
-            data VARCHAR NOT NULL,
-            status VARCHAR NOT NULL,
-            hora_inicio VARCHAR,
-            hora_fim VARCHAR,
-            UNIQUE(funcionario_id, data)
-        )
-    ''')
+    
+    # 1. Cria as tabelas bases se não existirem
+    cursor.execute('''CREATE TABLE IF NOT EXISTS funcionarios (id SERIAL PRIMARY KEY, codigo VARCHAR UNIQUE, nome VARCHAR NOT NULL, nivel VARCHAR NOT NULL, role VARCHAR DEFAULT 'staff', senha VARCHAR NOT NULL, primeiro_acesso INTEGER DEFAULT 1)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS disponibilidades (id SERIAL PRIMARY KEY, funcionario_id INTEGER, data VARCHAR NOT NULL, status VARCHAR NOT NULL, hora_inicio VARCHAR, hora_fim VARCHAR, UNIQUE(funcionario_id, data))''')
+    
+    # 2. Cria a nova tabela de limites semanais
+    cursor.execute('''CREATE TABLE IF NOT EXISTS limites_semanais (id SERIAL PRIMARY KEY, funcionario_id INTEGER, quinzena_inicio VARCHAR, limite INTEGER, UNIQUE(funcionario_id, quinzena_inicio))''')
+    
+    # 3. Auto-Upgrade: Adiciona a coluna is_student se ela não existir ainda (Sem quebrar o banco)
+    cursor.execute("SELECT column_name FROM information_schema.columns WHERE table_name='funcionarios' AND column_name='is_student'")
+    if not cursor.fetchone():
+        cursor.execute("ALTER TABLE funcionarios ADD COLUMN is_student INTEGER DEFAULT 0")
+    
+    # Popula o Admin se estiver vazio
     cursor.execute("SELECT COUNT(*) FROM funcionarios")
     if cursor.fetchone()[0] == 0:
-        cursor.execute("INSERT INTO funcionarios (codigo, nome, nivel, role, senha, primeiro_acesso) VALUES ('admin', 'Gerente Master', 'Veteran', 'manager', 'sick1234', 1)")
-        cursor.execute("INSERT INTO funcionarios (codigo, nome, nivel, role, senha, primeiro_acesso) VALUES ('tester', 'Conta de Teste', 'Normal', 'tester', 'tester', 0)")
+        cursor.execute("INSERT INTO funcionarios (codigo, nome, nivel, role, senha, primeiro_acesso, is_student) VALUES ('admin', 'Gerente Master', 'Veteran', 'manager', 'sick1234', 1, 0)")
+        cursor.execute("INSERT INTO funcionarios (codigo, nome, nivel, role, senha, primeiro_acesso, is_student) VALUES ('tester', 'Conta de Teste', 'Normal', 'tester', 'tester', 0, 0)")
+    
     conn.commit()
     cursor.close()
 
-# Roda a verificação de criação sempre que o app inicia
 criar_banco_de_dados()
 
 # --- FUNÇÕES DE TEMPO E LÓGICA ---
@@ -104,7 +94,9 @@ textos = {
         "edit_staff_title": "Edit Staff", "btn_edit": "Save", "edit_success": "✅ Updated!",
         "gen_title": "⚙️ AI Shift Generator", "btn_gen": "Generate Smart Schedule", "btn_download": "📥 Download Excel Matrix",
         "yasumi_label": "Yasumi", "off_label": "Off", "allocated_hours": "📊 Score & Hours", "total_hours": "Total Hours",
-        "delete_staff_title": "Delete Staff", "btn_delete": "Delete Permanently", "delete_warning": "⚠️ Deleting a staff member will also erase all their shift availability data.", "delete_success": "✅ Staff deleted successfully."
+        "delete_staff_title": "Delete Staff", "btn_delete": "Delete Permanently", "delete_warning": "⚠️ Deletes staff and shift data.", "delete_success": "✅ Deleted.",
+        "limit_toggle": "Limit weekly hours?", "limit_hours": "Max hours per week:", "confirm_zero": "⚠️ I confirm I cannot work (0 hours) this period.",
+        "err_zero": "❌ You selected 0 hours. Please check the confirmation box.", "student_label": "Student (28h Visa)"
     },
     "日本語": {
         "title": "🍻 Sick渋谷 - ポータル", "login_title": "ログイン", "code": "コード:", "pass": "パスワード:", "login_btn": "ログイン", "wrong_login": "❌ エラー",
@@ -118,7 +110,9 @@ textos = {
         "edit_staff_title": "編集", "btn_edit": "保存", "edit_success": "✅ 更新完了",
         "gen_title": "⚙️ AIシフト自動作成", "btn_gen": "スマートシフトを作成", "btn_download": "📥 Excelをダウンロード",
         "yasumi_label": "休み", "off_label": "オフ", "allocated_hours": "📊 スコアと時間", "total_hours": "合計時間",
-        "delete_staff_title": "スタッフを削除", "btn_delete": "完全に削除", "delete_warning": "⚠️ スタッフを削除すると、その人のシフトデータもすべて消去されます。", "delete_success": "✅ 削除しました。"
+        "delete_staff_title": "スタッフを削除", "btn_delete": "完全に削除", "delete_warning": "⚠️ シフトデータも消去されます。", "delete_success": "✅ 削除しました。",
+        "limit_toggle": "週の労働時間を制限する?", "limit_hours": "週の最大時間:", "confirm_zero": "⚠️ この期間は出勤できない（0時間）ことを確認しました。",
+        "err_zero": "❌ 0時間が選択されています。確認ボックスにチェックを入れてください。", "student_label": "学生 (28時間制限)"
     },
     "Português": {
         "title": "🍻 Sick渋谷 - Portal", "login_title": "Login", "code": "Código:", "pass": "Senha:", "login_btn": "Entrar", "wrong_login": "❌ Inválido.",
@@ -132,7 +126,9 @@ textos = {
         "edit_staff_title": "Editar", "btn_edit": "Salvar", "edit_success": "✅ Atualizado!",
         "gen_title": "⚙️ Gerador Inteligente de Escala", "btn_gen": "Processar Escala Justa", "btn_download": "📥 Baixar Planilha Final",
         "yasumi_label": "Yasumi", "off_label": "Folga", "allocated_hours": "📊 Multiplicador e Horas", "total_hours": "Total Alocado",
-        "delete_staff_title": "Excluir Funcionário", "btn_delete": "Excluir Permanentemente", "delete_warning": "⚠️ Atenção: Excluir um funcionário apagará permanentemente todos os horários que ele enviou.", "delete_success": "✅ Funcionário excluído com sucesso."
+        "delete_staff_title": "Excluir Funcionário", "btn_delete": "Excluir Permanentemente", "delete_warning": "⚠️ Apaga também todos os horários enviados pela pessoa.", "delete_success": "✅ Excluído.",
+        "limit_toggle": "Limitar horas semanais?", "limit_hours": "Horas máximas por semana:", "confirm_zero": "⚠️ Confirmo que não poderei trabalhar (0 horas) nesta quinzena.",
+        "err_zero": "❌ Você selecionou 0 horas. Por favor, marque a caixa de confirmação.", "student_label": "Estudante (Visto 28h)"
     }
 }
 
@@ -154,13 +150,12 @@ if not st.session_state['logado']:
         if st.form_submit_button(t["login_btn"]):
             conn = get_conn()
             cursor = conn.cursor()
-            # No PostgreSQL usamos %s em vez de ?
-            cursor.execute("SELECT id, nome, role, primeiro_acesso FROM funcionarios WHERE LOWER(codigo)=%s AND senha=%s", (cod_input, senha_input))
+            cursor.execute("SELECT id, nome, role, primeiro_acesso, is_student FROM funcionarios WHERE LOWER(codigo)=%s AND senha=%s", (cod_input, senha_input))
             usuario = cursor.fetchone()
             cursor.close()
             conn.close()
             if usuario:
-                st.session_state.update({'logado': True, 'user_id': usuario[0], 'user_nome': usuario[1], 'role': usuario[2], 'primeiro_acesso': usuario[3]})
+                st.session_state.update({'logado': True, 'user_id': usuario[0], 'user_nome': usuario[1], 'role': usuario[2], 'primeiro_acesso': usuario[3], 'is_student': usuario[4]})
                 st.rerun()
             else: st.error(t["wrong_login"])
 
@@ -200,7 +195,7 @@ else:
     menu = st.sidebar.radio("Menu", opcoes_menu)
 
     # ---------------------------------------------------------
-    # ABA 1: PAINEL DE TURNOS
+    # ABA 1: PAINEL DE TURNOS (COM LIMITES SEMANAIS)
     # ---------------------------------------------------------
     if menu == t["menu_shift"]:
         st.title(t["shift_form_title"])
@@ -214,9 +209,28 @@ else:
         ano, mes = opcoes_mes[idx_mes].year, opcoes_mes[idx_mes].month
         if quinzena == t["period_1"]: dia_inicio, dia_fim = 1, 15
         else: dia_inicio, dia_fim = 16, calendar.monthrange(ano, mes)[1] 
+        data_inicio_str = f"{ano}-{mes:02d}-{dia_inicio:02d}"
 
         st.divider()
         st.write(f"**{mes_selecionado_str} - {quinzena}**")
+        
+        # Lógica de Limite de Horas
+        is_stud = (st.session_state.get('is_student', 0) == 1)
+        
+        st.markdown("### ⏱️ Restrições / Restrictions")
+        # Se for estudante, o toggle fica sempre ON e não dá pra desligar
+        limite_ativo = st.toggle(t["limit_toggle"], value=True if is_stud else False, disabled=is_stud)
+        
+        limite_horas = None
+        confirma_zero = False
+        if limite_ativo:
+            max_h = 28 if is_stud else 48
+            limite_horas = st.number_input(t["limit_hours"], min_value=0, max_value=max_h, value=0, step=1)
+            if limite_horas == 0:
+                confirma_zero = st.checkbox(t["confirm_zero"])
+        
+        st.divider()
+
         respostas = {}
         for dia in range(dia_inicio, dia_fim + 1):
             data_atual = datetime.date(ano, mes, dia)
@@ -230,19 +244,37 @@ else:
             hora_out = c3.selectbox(t["end_time"], opcoes_horas, index=len(opcoes_horas)-1, disabled=bloquear_horas, key=f"out_{dia}")
             respostas[dia] = {"data": f"{ano}-{mes:02d}-{dia:02d}", "status": "yasumi" if status == t["status_yasumi"] else "disponivel", "in": "" if status == t["status_yasumi"] else hora_in, "out": "" if status == t["status_yasumi"] else hora_out}
             st.markdown("---")
+            
         if st.button(t["btn_submit_shift"], use_container_width=True):
-            if st.session_state['role'] == 'tester': st.error("Testers cannot save data!")
+            if st.session_state['role'] == 'tester': 
+                st.error("Testers cannot save data!")
+            elif limite_ativo and limite_horas == 0 and not confirma_zero:
+                st.error(t["err_zero"])
             else:
                 conn = get_conn()
                 cursor = conn.cursor()
+                
+                # Salva o limite semanal
+                if limite_ativo:
+                    cursor.execute('''
+                        INSERT INTO limites_semanais (funcionario_id, quinzena_inicio, limite) 
+                        VALUES (%s, %s, %s)
+                        ON CONFLICT (funcionario_id, quinzena_inicio) 
+                        DO UPDATE SET limite = EXCLUDED.limite
+                    ''', (st.session_state['user_id'], data_inicio_str, limite_horas))
+                else:
+                    # Se desligou o limite, deleta do banco
+                    cursor.execute("DELETE FROM limites_semanais WHERE funcionario_id=%s AND quinzena_inicio=%s", (st.session_state['user_id'], data_inicio_str))
+
+                # Salva as disponibilidades
                 for dia, info in respostas.items():
-                    # Sintaxe de REPLACE INTO traduzida para PostgreSQL (ON CONFLICT)
                     cursor.execute('''
                         INSERT INTO disponibilidades (funcionario_id, data, status, hora_inicio, hora_fim) 
                         VALUES (%s, %s, %s, %s, %s)
                         ON CONFLICT (funcionario_id, data) 
                         DO UPDATE SET status = EXCLUDED.status, hora_inicio = EXCLUDED.hora_inicio, hora_fim = EXCLUDED.hora_fim
                     ''', (st.session_state['user_id'], info["data"], info["status"], info["in"], info["out"]))
+                
                 conn.commit()
                 cursor.close()
                 conn.close()
@@ -274,11 +306,10 @@ else:
             st.dataframe(df_final[['codigo', 'nome', 'Status']].rename(columns={'codigo': 'Code', 'nome': t["col_name"]}), hide_index=True, use_container_width=True)
 
     # ---------------------------------------------------------
-    # ABA 3: GERADOR DE ESCALA INTELIGENTE
+    # ABA 3: GERADOR DE ESCALA INTELIGENTE (COM LIMITES LEGAIS)
     # ---------------------------------------------------------
     elif menu == t["menu_generate"]:
         st.title(t["gen_title"])
-        
         hoje = datetime.date.today()
         opcoes_mes = [(hoje.replace(day=1) + datetime.timedelta(days=31*i)).replace(day=1) for i in range(3)]
         nomes_meses = [f"{m.strftime('%B %Y')}" for m in opcoes_mes]
@@ -299,8 +330,9 @@ else:
             dict_niveis = dict(zip(df_staff['id'], df_staff['nivel']))
             dict_nomes = dict(zip(df_staff['id'], df_staff['nome']))
             
-            query = f"SELECT * FROM disponibilidades WHERE data >= '{data_inicio_str}' AND data <= '{data_fim_str}'"
-            df_disp = pd.read_sql_query(query, conn)
+            df_disp = pd.read_sql_query(f"SELECT * FROM disponibilidades WHERE data >= '{data_inicio_str}' AND data <= '{data_fim_str}'", conn)
+            df_limites = pd.read_sql_query(f"SELECT funcionario_id, limite FROM limites_semanais WHERE quinzena_inicio = '{data_inicio_str}'", conn)
+            dict_limites = dict(zip(df_limites['funcionario_id'], df_limites['limite']))
             conn.close()
 
             if df_disp.empty:
@@ -329,12 +361,16 @@ else:
                         multiplicadores[f_id] = m
 
                 horas_atribuidas = {f_id: 0 for f_id in dict_nomes.keys()}
+                # Rastreador de horas por SEMANA
+                horas_por_semana = {f_id: {} for f_id in dict_nomes.keys()}
+                
                 matriz_escala = {f_id: {} for f_id in dict_nomes.keys()}
                 dias_da_quinzena = sorted(df_disp['data'].unique())
                 
                 for dia in dias_da_quinzena:
                     disp_dia = df_disp[df_disp['data'] == dia]
                     data_obj = datetime.datetime.strptime(dia, "%Y-%m-%d").date()
+                    week_num = data_obj.isocalendar()[1] # Pega o número da semana no ano
                     horarios_do_dia = get_horarios_permitidos(data_obj)
                     
                     trabalhando_no_slot = {t: [] for t in horarios_do_dia}
@@ -366,10 +402,19 @@ else:
                         
                         for f in se_trabalhava_antes:
                             if f in livres_agora and len(selecionados) < target:
-                                selecionados.append(f)
+                                limit_f = dict_limites.get(f, 999)
+                                if horas_por_semana[f].get(week_num, 0) + 0.5 <= limit_f:
+                                    selecionados.append(f)
                                 
                         if len(selecionados) < target:
-                            candidatos = [f for f in livres_agora if f not in selecionados]
+                            # APLICA A LEI DAS 28 HORAS (Filtra quem estourou o limite na semana)
+                            candidatos = []
+                            for f in livres_agora:
+                                if f not in selecionados:
+                                    limit_f = dict_limites.get(f, 999)
+                                    if horas_por_semana[f].get(week_num, 0) + 0.5 <= limit_f:
+                                        candidatos.append(f)
+                            
                             if slot_atual == "18:30":
                                 candidatos = [f for f in candidatos if dict_niveis[f] in ['Veteran', 'Normal']]
                                 
@@ -389,16 +434,23 @@ else:
                         if slot_atual >= "19:00" and len(selecionados) > 0 and not check_seguranca(selecionados):
                             rookies_selecionados = [f for f in selecionados if dict_niveis[f] == 'Rookie']
                             salvadores = [f for f in livres_agora if f not in selecionados and dict_niveis[f] in ['Veteran', 'Normal']]
-                            salvadores.sort(key=lambda x: horas_atribuidas.get(x, 0) / multiplicadores.get(x, 1.0)) 
                             
-                            if rookies_selecionados and salvadores:
+                            salvadores_validos = []
+                            for s in salvadores:
+                                if horas_por_semana[s].get(week_num, 0) + 0.5 <= dict_limites.get(s, 999):
+                                    salvadores_validos.append(s)
+                                    
+                            salvadores_validos.sort(key=lambda x: horas_atribuidas.get(x, 0) / multiplicadores.get(x, 1.0)) 
+                            
+                            if rookies_selecionados and salvadores_validos:
                                 selecionados.remove(rookies_selecionados[0])
-                                selecionados.append(salvadores[0])
+                                selecionados.append(salvadores_validos[0])
                                 
                         trabalhando_no_slot[slot_atual] = selecionados
                         for f in selecionados:
                             slots_atribuidos_no_dia[f].append(slot_atual)
                             horas_atribuidas[f] += 1 
+                            horas_por_semana[f][week_num] = horas_por_semana[f].get(week_num, 0) + 0.5 # Soma as horas da semana exata
                             
                     for f_id, slots in slots_atribuidos_no_dia.items():
                         if len(slots) > 0:
@@ -425,13 +477,11 @@ else:
                 
                 df_final = df_final.dropna(thresh=3).fillna("-")
 
-                st.success("✅ " + t["gen_title"] + " Concluído! Sistema Ponderado Ativado.")
+                st.success("✅ " + t["gen_title"] + " Concluído!")
                 
                 col_tabela, col_horas = st.columns([3, 1])
-                
                 with col_tabela:
                     st.dataframe(df_final, use_container_width=True)
-                    
                 with col_horas:
                     st.markdown(f"**{t['allocated_hours']}**")
                     dados_horas = []
@@ -439,18 +489,16 @@ else:
                         if f_id in horas_oferecidas: 
                             dados_horas.append({
                                 "Nome": dict_nomes[f_id], 
-                                "Mult. (0.85 a 1.0)": round(multiplicadores.get(f_id, 1.0), 3),
+                                "Mult.": round(multiplicadores.get(f_id, 1.0), 3),
                                 t["total_hours"]: slots * 0.5
                             })
-                    
                     if dados_horas:
-                        df_horas = pd.DataFrame(dados_horas).sort_values(by="Mult. (0.85 a 1.0)", ascending=False)
+                        df_horas = pd.DataFrame(dados_horas).sort_values(by="Mult.", ascending=False)
                         st.dataframe(df_horas, hide_index=True, use_container_width=True)
 
                 buffer = io.BytesIO()
                 with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
                     df_final.to_excel(writer, index=False, sheet_name='Escala Inteligente')
-                
                 st.download_button(label=t["btn_download"], data=buffer.getvalue(), file_name=f"Escala_Sick_{mes_selecionado_str}_{quinzena}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", type="primary")
 
     # ---------------------------------------------------------
@@ -460,21 +508,22 @@ else:
         st.title(t["add_staff_title"])
         if st.session_state['role'] == 'tester': st.warning(t["tester_alert"])
         conn = get_conn()
-        df = pd.read_sql_query("SELECT id, codigo, nome, nivel, role FROM funcionarios", conn)
+        df = pd.read_sql_query("SELECT id, codigo, nome, nivel, role, is_student FROM funcionarios", conn)
         conn.close()
         
         df_show = df[["codigo", "nome", "role"]] if st.session_state['role'] == 'tester' else df[["codigo", "nome", "nivel", "role"]]
         if not df_show.empty: st.dataframe(df_show.rename(columns={"codigo": "Code", "nome": t["col_name"], "nivel": t["col_level"], "role": "Role"}), hide_index=True, use_container_width=True)
 
         if st.session_state['role'] == 'manager':
-            # --- ADICIONAR ---
             with st.expander("➕ " + t["add_staff_title"]):
                 with st.form("form_add"):
                     nome, nivel, tipo_conta = st.text_input(t["staff_name"]), st.selectbox(t["staff_level"], ["Rookie", "Normal", "Veteran"]), st.selectbox(t["role_label"], ["Staff", "Manager"])
+                    is_student_input = st.checkbox(t["student_label"])
+                    
                     if st.form_submit_button(t["btn_add"]) and nome != "":
                         conn = get_conn()
                         cursor = conn.cursor()
-                        cursor.execute("INSERT INTO funcionarios (codigo, nome, nivel, role, senha, primeiro_acesso) VALUES ('temp', %s, %s, %s, 'sick1234', 1) RETURNING id", (nome, nivel, "manager" if tipo_conta == "Manager" else "staff"))
+                        cursor.execute("INSERT INTO funcionarios (codigo, nome, nivel, role, senha, primeiro_acesso, is_student) VALUES ('temp', %s, %s, %s, 'sick1234', 1, %s) RETURNING id", (nome, nivel, "manager" if tipo_conta == "Manager" else "staff", 1 if is_student_input else 0))
                         id_novo = cursor.fetchone()[0]
                         cursor.execute("UPDATE funcionarios SET codigo=%s WHERE id=%s", (f"sk{id_novo:03d}", id_novo))
                         conn.commit()
@@ -483,7 +532,6 @@ else:
                         st.success(t["staff_created"].format(codigo=f"sk{id_novo:03d}"))
                         st.rerun()
 
-            # --- EDITAR (COM REBAIXAMENTO DE CARGO) ---
             if not df.empty:
                 with st.expander("✏️ " + t["edit_staff_title"]):
                     opcoes_edit = df['nome'] + " (" + df['codigo'] + ")"
@@ -494,21 +542,20 @@ else:
                         n_nome = st.text_input(t["staff_name"], value=df.iloc[idx]['nome'])
                         n_nivel = st.selectbox(t["staff_level"], ["Rookie", "Normal", "Veteran"], index=["Rookie", "Normal", "Veteran"].index(df.iloc[idx]['nivel']))
                         
-                        # Trava de Segurança Mestra: o 'admin' original não pode ser rebaixado
                         is_master_admin = (df.iloc[idx]['codigo'] == 'admin')
                         n_tipo = st.selectbox(t["role_label"], ["Staff", "Manager"], index=1 if df.iloc[idx]['role'] == 'manager' else 0, disabled=is_master_admin)
+                        n_student = st.checkbox(t["student_label"], value=bool(df.iloc[idx]['is_student']))
                         
                         if st.form_submit_button(t["btn_edit"]):
                             conn = get_conn()
                             cursor = conn.cursor()
-                            cursor.execute("UPDATE funcionarios SET nome=%s, nivel=%s, role=%s WHERE id=%s", (n_nome, n_nivel, 'manager' if n_tipo == 'Manager' else 'staff', int(df.iloc[idx]['id'])))
+                            cursor.execute("UPDATE funcionarios SET nome=%s, nivel=%s, role=%s, is_student=%s WHERE id=%s", (n_nome, n_nivel, 'manager' if n_tipo == 'Manager' else 'staff', 1 if n_student else 0, int(df.iloc[idx]['id'])))
                             conn.commit()
                             cursor.close()
                             conn.close()
                             st.success(t["edit_success"])
                             st.rerun()
 
-            # --- EXCLUIR FUNCIONÁRIO ---
             df_delete = df[df['codigo'] != 'admin'] 
             if not df_delete.empty:
                 with st.expander("🗑️ " + t["delete_staff_title"]):
@@ -521,13 +568,13 @@ else:
                         cursor = conn.cursor()
                         cursor.execute("DELETE FROM funcionarios WHERE id=%s", (id_alvo,))
                         cursor.execute("DELETE FROM disponibilidades WHERE funcionario_id=%s", (id_alvo,))
+                        cursor.execute("DELETE FROM limites_semanais WHERE funcionario_id=%s", (id_alvo,))
                         conn.commit()
                         cursor.close()
                         conn.close()
                         st.success(t["delete_success"])
                         st.rerun()
 
-            # --- RESETAR SENHA ---
             df_res = df[df['role'] != 'manager'] 
             if not df_res.empty:
                 with st.expander("🔑 " + t["reset_pass_title"]):
