@@ -10,8 +10,7 @@ import math
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Sick渋谷 - Shift Manager", page_icon="🍻", layout="wide")
 
-# --- 2. BANCO DE DADOS (COM AUTO-ATUALIZAÇÃO) ---
-@st.cache_resource
+# --- 2. BANCO DE DADOS (COM AUTO-ATUALIZAÇÃO E SEM CACHE PROBLEMÁTICO) ---
 def get_conn():
     return psycopg2.connect(st.secrets["DATABASE_URL"])
 
@@ -39,6 +38,7 @@ def criar_banco_de_dados():
     
     conn.commit()
     cursor.close()
+    conn.close() # FECHAMENTO CORRETO ADICIONADO AQUI
 
 criar_banco_de_dados()
 
@@ -94,7 +94,7 @@ textos = {
         "edit_staff_title": "Edit Staff", "btn_edit": "Save", "edit_success": "✅ Updated!",
         "gen_title": "⚙️ AI Shift Generator", "btn_gen": "Generate Smart Schedule", "btn_download": "📥 Download Excel Matrix",
         "yasumi_label": "Yasumi", "off_label": "Off", "allocated_hours": "📊 Score & Hours", "total_hours": "Total Hours",
-        "delete_staff_title": "Delete Staff", "btn_delete": "Delete Permanently", "delete_warning": "⚠️ Deletes staff and shift data.", "delete_success": "✅ Deleted.",
+        "delete_staff_title": "Delete Staff", "btn_delete": "Delete Permanently", "delete_warning": "⚠️ Deleting a staff member will also erase all their shift availability data.", "delete_success": "✅ Staff deleted successfully.",
         "limit_toggle": "Limit weekly hours?", "limit_hours": "Max hours per week:", "confirm_zero": "⚠️ I confirm I cannot work (0 hours) this period.",
         "err_zero": "❌ You selected 0 hours. Please check the confirmation box.", "student_label": "Student (28h Visa)"
     },
@@ -214,11 +214,8 @@ else:
         st.divider()
         st.write(f"**{mes_selecionado_str} - {quinzena}**")
         
-        # Lógica de Limite de Horas
         is_stud = (st.session_state.get('is_student', 0) == 1)
-        
         st.markdown("### ⏱️ Restrições / Restrictions")
-        # Se for estudante, o toggle fica sempre ON e não dá pra desligar
         limite_ativo = st.toggle(t["limit_toggle"], value=True if is_stud else False, disabled=is_stud)
         
         limite_horas = None
@@ -253,8 +250,6 @@ else:
             else:
                 conn = get_conn()
                 cursor = conn.cursor()
-                
-                # Salva o limite semanal
                 if limite_ativo:
                     cursor.execute('''
                         INSERT INTO limites_semanais (funcionario_id, quinzena_inicio, limite) 
@@ -263,10 +258,8 @@ else:
                         DO UPDATE SET limite = EXCLUDED.limite
                     ''', (st.session_state['user_id'], data_inicio_str, limite_horas))
                 else:
-                    # Se desligou o limite, deleta do banco
                     cursor.execute("DELETE FROM limites_semanais WHERE funcionario_id=%s AND quinzena_inicio=%s", (st.session_state['user_id'], data_inicio_str))
 
-                # Salva as disponibilidades
                 for dia, info in respostas.items():
                     cursor.execute('''
                         INSERT INTO disponibilidades (funcionario_id, data, status, hora_inicio, hora_fim) 
@@ -306,7 +299,7 @@ else:
             st.dataframe(df_final[['codigo', 'nome', 'Status']].rename(columns={'codigo': 'Code', 'nome': t["col_name"]}), hide_index=True, use_container_width=True)
 
     # ---------------------------------------------------------
-    # ABA 3: GERADOR DE ESCALA INTELIGENTE (COM LIMITES LEGAIS)
+    # ABA 3: GERADOR DE ESCALA INTELIGENTE
     # ---------------------------------------------------------
     elif menu == t["menu_generate"]:
         st.title(t["gen_title"])
@@ -361,16 +354,14 @@ else:
                         multiplicadores[f_id] = m
 
                 horas_atribuidas = {f_id: 0 for f_id in dict_nomes.keys()}
-                # Rastreador de horas por SEMANA
                 horas_por_semana = {f_id: {} for f_id in dict_nomes.keys()}
-                
                 matriz_escala = {f_id: {} for f_id in dict_nomes.keys()}
                 dias_da_quinzena = sorted(df_disp['data'].unique())
                 
                 for dia in dias_da_quinzena:
                     disp_dia = df_disp[df_disp['data'] == dia]
                     data_obj = datetime.datetime.strptime(dia, "%Y-%m-%d").date()
-                    week_num = data_obj.isocalendar()[1] # Pega o número da semana no ano
+                    week_num = data_obj.isocalendar()[1]
                     horarios_do_dia = get_horarios_permitidos(data_obj)
                     
                     trabalhando_no_slot = {t: [] for t in horarios_do_dia}
@@ -407,7 +398,6 @@ else:
                                     selecionados.append(f)
                                 
                         if len(selecionados) < target:
-                            # APLICA A LEI DAS 28 HORAS (Filtra quem estourou o limite na semana)
                             candidatos = []
                             for f in livres_agora:
                                 if f not in selecionados:
@@ -450,7 +440,7 @@ else:
                         for f in selecionados:
                             slots_atribuidos_no_dia[f].append(slot_atual)
                             horas_atribuidas[f] += 1 
-                            horas_por_semana[f][week_num] = horas_por_semana[f].get(week_num, 0) + 0.5 # Soma as horas da semana exata
+                            horas_por_semana[f][week_num] = horas_por_semana[f].get(week_num, 0) + 0.5
                             
                     for f_id, slots in slots_atribuidos_no_dia.items():
                         if len(slots) > 0:
