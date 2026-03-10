@@ -12,7 +12,6 @@ import math
 st.set_page_config(page_title="Sick渋谷 - Shift Manager", page_icon="🍻", layout="wide")
 
 # --- 2. BANCO DE DADOS (ERP COMPLETO) ---
-@st.cache_resource
 def get_conn():
     return psycopg2.connect(st.secrets["DATABASE_URL"])
 
