@@ -37,6 +37,7 @@ def criar_banco_de_dados():
     
     conn.commit()
     cursor.close()
+    conn.close()
 
 criar_banco_de_dados()
 
