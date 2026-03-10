@@ -110,7 +110,7 @@ textos = {
     "Português": {
         "login_title": "🍻 Sick渋谷 - Portal", "code": "Código:", "pass": "Senha:", "btn_login": "Entrar", "err_login": "❌ Login inválido.",
         "new_pass_title": "🔒 Alterar Senha", "new_pass": "Nova Senha (mín 6):", "conf_pass": "Confirme:", "btn_update_pass": "Atualizar", "err_pass": "⚠️ Senhas curtas ou diferentes.", "success_pass": "✅ Senha atualizada!",
-        "menu_shift": "📝 Enviar Escala", "menu_vacation": "🌴 Férias Escolares", "menu_final": "📅 Escala Final", "menu_swap": "🔄 Trocas", "menu_alerts": "🔔 Alertas", "menu_gen": "⚙️ Gerar & Publicar", "menu_history": "📜 Histórico Férias", "menu_staff": "👥 Equipe", "change_pass": "🔑 Mudar Senha", "logout": "🚪 Sair",
+        "menu_shift": "📝 Enviar Escala", "menu_vacation": "🌴 Férias Escolares", "menu_final": "📅 Escala Final", "menu_swap": "🔄 Trocas", "menu_alerts": "🔔 Alertas", "menu_gen": "⚙️ Gerar & Publicar", "menu_history": "📜 Histórico Férias", "menu_staff": "👥 Equipe", "menu_view_status": "👀 Status Envios", "change_pass": "🔑 Mudar Senha", "logout": "🚪 Sair",
         "lbl_month": "Mês:", "lbl_period": "Período:", "p1": "Dia 1 ao 15", "p2": "Dia 16 ao final", "limit_tog": "Limitar horas semanais?", "limit_hrs": "Máximo de horas (Semana):", "conf_zero": "⚠️ Confirmo que NÃO vou trabalhar (0h).", "err_zero": "❌ Marque a confirmação de 0 horas.",
         "status_work": "Trabalhar", "status_yas": "Yasumi (Folga)", "in": "Entrada:", "out": "Saída:", "btn_submit": "Enviar Escala", "msg_saved": "✅ Salvo com sucesso!",
         "vac_info": "Limite sobe de 28h para 40h. **Envie a foto do documento para o gerente!**", "vac_start": "Início:", "vac_end": "Retorno:", "btn_vac": "Lançar Pedido", "msg_vac": "✅ Pedido enviado!",
@@ -119,12 +119,12 @@ textos = {
         "swap_give": "1. Passar meu Turno", "swap_which": "Qual turno passar?", "swap_type": "Como trocar?", "swap_free": "Livre", "swap_spec": "Pessoa Específica", "swap_who": "Para quem?", "btn_swap_req": "Solicitar Troca",
         "swap_pend": "2. Meus Pedidos", "btn_cancel": "Cancelar", "swap_avail": "3. Assumir Turnos", "btn_accept": "Aceitar",
         "staff_add": "➕ Adicionar", "staff_name": "Nome:", "staff_lvl": "Nível:", "staff_role": "Conta:", "staff_stud": "Estudante (28h)", "btn_create": "Criar",
-        "staff_edit": "✏️ Editar", "btn_save": "Salvar", "staff_del": "🗑️ Excluir", "btn_del": "Excluir Permanentemente"
+        "staff_edit": "✏️ Editar", "btn_save": "Salvar", "staff_del": "🗑️ Excluir", "btn_del": "Excluir Permanentemente", "yes": "Sim", "no": "Não", "status_sub": "✅ Enviado", "status_pend": "❌ Pendente"
     },
     "English": {
         "login_title": "🍻 Sick渋谷 - Portal", "code": "Code:", "pass": "Password:", "btn_login": "Login", "err_login": "❌ Invalid login.",
         "new_pass_title": "🔒 Change Password", "new_pass": "New Pass (min 6):", "conf_pass": "Confirm:", "btn_update_pass": "Update", "err_pass": "⚠️ Passwords mismatch/too short.", "success_pass": "✅ Password updated!",
-        "menu_shift": "📝 Submit Shift", "menu_vacation": "🌴 School Vacation", "menu_final": "📅 Final Schedule", "menu_swap": "🔄 Swaps", "menu_alerts": "🔔 Alerts", "menu_gen": "⚙️ Generate & Publish", "menu_history": "📜 Vacation History", "menu_staff": "👥 Staff", "change_pass": "🔑 Change Password", "logout": "🚪 Logout",
+        "menu_shift": "📝 Submit Shift", "menu_vacation": "🌴 School Vacation", "menu_final": "📅 Final Schedule", "menu_swap": "🔄 Swaps", "menu_alerts": "🔔 Alerts", "menu_gen": "⚙️ Generate & Publish", "menu_history": "📜 Vacation History", "menu_staff": "👥 Staff", "menu_view_status": "👀 Submissions", "change_pass": "🔑 Change Password", "logout": "🚪 Logout",
         "lbl_month": "Month:", "lbl_period": "Period:", "p1": "1st to 15th", "p2": "16th to End", "limit_tog": "Limit weekly hours?", "limit_hrs": "Max hours (Week):", "conf_zero": "⚠️ I confirm I will NOT work (0h).", "err_zero": "❌ Please check the 0 hours confirmation.",
         "status_work": "Available", "status_yas": "Yasumi (Off)", "in": "In:", "out": "Out:", "btn_submit": "Submit Shift", "msg_saved": "✅ Saved successfully!",
         "vac_info": "Limit increases to 40h. **Send document photo to manager!**", "vac_start": "Start:", "vac_end": "Return:", "btn_vac": "Request", "msg_vac": "✅ Request sent!",
@@ -133,12 +133,12 @@ textos = {
         "swap_give": "1. Pass my Shift", "swap_which": "Which shift?", "swap_type": "How to swap?", "swap_free": "Free (Anyone)", "swap_spec": "Specific Person", "swap_who": "Who?", "btn_swap_req": "Request Swap",
         "swap_pend": "2. My Requests", "btn_cancel": "Cancel", "swap_avail": "3. Take Shifts", "btn_accept": "Accept",
         "staff_add": "➕ Add", "staff_name": "Name:", "staff_lvl": "Level:", "staff_role": "Account:", "staff_stud": "Student (28h)", "btn_create": "Create",
-        "staff_edit": "✏️ Edit", "btn_save": "Save", "staff_del": "🗑️ Delete", "btn_del": "Delete Permanently"
+        "staff_edit": "✏️ Edit", "btn_save": "Save", "staff_del": "🗑️ Delete", "btn_del": "Delete Permanently", "yes": "Yes", "no": "No", "status_sub": "✅ Submitted", "status_pend": "❌ Pending"
     },
     "日本語": {
         "login_title": "🍻 Sick渋谷 - ポータル", "code": "コード:", "pass": "パスワード:", "btn_login": "ログイン", "err_login": "❌ エラー",
         "new_pass_title": "🔒 パスワード変更", "new_pass": "新しいパスワード:", "conf_pass": "確認:", "btn_update_pass": "更新", "err_pass": "⚠️ 一致しません。", "success_pass": "✅ 更新完了！",
-        "menu_shift": "📝 シフト提出", "menu_vacation": "🌴 学校の休暇", "menu_final": "📅 確定シフト", "menu_swap": "🔄 交換", "menu_alerts": "🔔 通知", "menu_gen": "⚙️ シフト作成", "menu_history": "📜 休暇履歴", "menu_staff": "👥 スタッフ", "change_pass": "🔑 PW変更", "logout": "🚪 ログアウト",
+        "menu_shift": "📝 シフト提出", "menu_vacation": "🌴 学校の休暇", "menu_final": "📅 確定シフト", "menu_swap": "🔄 交換", "menu_alerts": "🔔 通知", "menu_gen": "⚙️ シフト作成", "menu_history": "📜 休暇履歴", "menu_staff": "👥 スタッフ", "menu_view_status": "👀 提出状況", "change_pass": "🔑 PW変更", "logout": "🚪 ログアウト",
         "lbl_month": "月:", "lbl_period": "期間:", "p1": "1日〜15日", "p2": "16日〜月末", "limit_tog": "週の時間を制限?", "limit_hrs": "最大時間 (週):", "conf_zero": "⚠️ 0時間であることを確認しました。", "err_zero": "❌ 0時間の確認にチェックを入れてください。",
         "status_work": "出勤", "status_yas": "休み", "in": "開始:", "out": "終了:", "btn_submit": "提出", "msg_saved": "✅ 保存しました！",
         "vac_info": "上限が40時間に増えます。**マネージャーに書類の写真を送ってください！**", "vac_start": "開始:", "vac_end": "戻る:", "btn_vac": "申請", "msg_vac": "✅ 送信完了！",
@@ -147,7 +147,7 @@ textos = {
         "swap_give": "1. シフトを渡す", "swap_which": "どのシフト？", "swap_type": "交換方法は？", "swap_free": "誰でも", "swap_spec": "特定の人", "swap_who": "誰に？", "btn_swap_req": "リクエスト",
         "swap_pend": "2. 保留中のリクエスト", "btn_cancel": "キャンセル", "swap_avail": "3. シフトを受ける", "btn_accept": "承諾",
         "staff_add": "➕ 追加", "staff_name": "名前:", "staff_lvl": "レベル:", "staff_role": "権限:", "staff_stud": "学生 (28h)", "btn_create": "作成",
-        "staff_edit": "✏️ 編集", "btn_save": "保存", "staff_del": "🗑️ 削除", "btn_del": "完全に削除"
+        "staff_edit": "✏️ 編集", "btn_save": "保存", "staff_del": "🗑️ 削除", "btn_del": "完全に削除", "yes": "はい", "no": "いいえ", "status_sub": "✅ 提出済", "status_pend": "❌ 未提出"
     }
 }
 t = textos[st.session_state['idioma']]
@@ -193,7 +193,7 @@ else:
 
     menus = [t["menu_alerts"], t["menu_final"], t["menu_swap"]]
     if st.session_state['role'] in ['manager', 'tester']: 
-        menus.extend([t["menu_gen"], t["menu_history"], t["menu_staff"]])
+        menus.extend([t["menu_view_status"], t["menu_gen"], t["menu_history"], t["menu_staff"]])
     if st.session_state['role'] == 'staff': 
         menus.insert(0, t["menu_shift"])
         if st.session_state.get('is_student') == 1: menus.insert(1, t["menu_vacation"])
@@ -267,12 +267,38 @@ else:
                 conn = get_conn()
                 conn.cursor().execute("INSERT INTO ferias_estudante (funcionario_id, data_inicio, data_fim) VALUES (%s, %s, %s)", (st.session_state['user_id'], str(d_inicio), str(d_fim)))
                 conn.commit()
-                add_alerta(-1, f"🔔 {st.session_state['user_nome']} pediu férias.")
+                add_alerta(-1, f"🔔 {st.session_state['user_nome']} pediu férias escolares.")
                 st.success(t["msg_vac"])
                 conn.close()
 
     # =========================================================
-    # ABA 3: ALERTAS E CAIXA DE ENTRADA
+    # ABA 3: STATUS DOS ENVIOS (RESTAURADA)
+    # =========================================================
+    elif aba == t["menu_view_status"] and st.session_state['role'] in ['manager', 'tester']:
+        st.title(t["menu_view_status"])
+        opcoes_mes = [(hoje.replace(day=1) + timedelta(days=31*i)).replace(day=1) for i in range(3)]
+        nomes_meses = [f"{m.strftime('%B %Y')}" for m in opcoes_mes]
+        col1, col2 = st.columns(2)
+        mes_selecionado_str = col1.selectbox(t["lbl_month"], nomes_meses, key="view_mes")
+        quinzena = col2.radio(t["lbl_period"], [t["p1"], t["p2"]], key="view_quinzena")
+        idx_mes = nomes_meses.index(mes_selecionado_str)
+        ano, mes = opcoes_mes[idx_mes].year, opcoes_mes[idx_mes].month
+        if quinzena == t["p1"]: d_in, d_out = f"{ano}-{mes:02d}-01", f"{ano}-{mes:02d}-15"
+        else: d_in, d_out = f"{ano}-{mes:02d}-16", f"{ano}-{mes:02d}-{calendar.monthrange(ano, mes)[1]:02d}"
+        
+        st.divider()
+        conn = get_conn()
+        df_staff = pd.read_sql_query("SELECT id, nome, codigo FROM funcionarios WHERE role IN ('staff', 'manager')", conn)
+        df_envios = pd.read_sql_query(f"SELECT funcionario_id, COUNT(*) as dias FROM disponibilidades WHERE data >= '{d_in}' AND data <= '{d_out}' GROUP BY funcionario_id", conn)
+        conn.close()
+        
+        if not df_staff.empty:
+            df_final = pd.merge(df_staff, df_envios, left_on='id', right_on='funcionario_id', how='left')
+            df_final['Status'] = df_final['dias'].apply(lambda x: t["status_sub"] if x > 0 else t["status_pend"])
+            st.dataframe(df_final[['codigo', 'nome', 'Status']].rename(columns={'codigo': 'Code', 'nome': 'Nome/Name'}), hide_index=True, use_container_width=True)
+
+    # =========================================================
+    # ABA 4: ALERTAS E CAIXA DE ENTRADA
     # =========================================================
     elif aba == t["menu_alerts"]:
         st.title(t["menu_alerts"])
@@ -319,7 +345,7 @@ else:
         conn.close()
 
     # =========================================================
-    # ABA 4: HISTÓRICO FÉRIAS
+    # ABA 5: HISTÓRICO FÉRIAS
     # =========================================================
     elif aba == t["menu_history"] and st.session_state['role'] in ['manager', 'tester']:
         st.title(t["menu_history"])
@@ -327,7 +353,7 @@ else:
         st.dataframe(df_h, use_container_width=True, hide_index=True)
 
     # =========================================================
-    # ABA 5: O CÉREBRO: GERAR & PUBLICAR (A IA + A MALHA FINA)
+    # ABA 6: O CÉREBRO: GERAR & PUBLICAR (A IA + A MALHA FINA)
     # =========================================================
     elif aba == t["menu_gen"] and st.session_state['role'] in ['manager', 'tester']:
         st.title(t["menu_gen"])
@@ -354,7 +380,7 @@ else:
         if 'df_final_draft' not in st.session_state: st.session_state['df_final_draft'] = None
 
         if st.button(t["gen_btn"], use_container_width=True):
-            if df_disp.empty: st.warning("Ninguém enviou horários / 提出者がいません / No one submitted.")
+            if df_disp.empty: st.warning("Ninguém enviou horários.")
             else:
                 horas_oferecidas = {}
                 for _, row in df_disp[df_disp['status'] == 'disponivel'].iterrows():
@@ -475,7 +501,7 @@ else:
                             tem_ferias = False
                             if not df_ferias[df_ferias['funcionario_id'] == f_id].empty: tem_ferias = True
                             limite_legal = 40 if tem_ferias else 28
-                            if total_h > limite_legal: erros.append(f"❌ ERRO/エラー: Estudante {f_nome} > {limite_legal}h (W{w_num}: {total_h}h).")
+                            if total_h > limite_legal: erros.append(f"❌ ERRO: {f_nome} > {limite_legal}h (W{w_num}: {total_h}h).")
                         if total_h > limite_voluntario: avisos.append(f"⚠️ {f_nome}: > {limite_voluntario}h (W{w_num}: {total_h}h).")
 
                 if len(erros) > 0:
@@ -483,7 +509,7 @@ else:
                     st.stop()
                 elif len(avisos) > 0 and not st.session_state.get('confirmar_avisos', False):
                     for a in avisos: st.warning(a)
-                    st.checkbox("Confirmo os riscos / リスクを承知しました", key="confirmar_avisos")
+                    st.checkbox("Confirmo os avisos / Confirm warnings", key="confirmar_avisos")
                     st.stop()
                 else:
                     cur = conn.cursor()
@@ -495,14 +521,14 @@ else:
                                 if val not in ["Folga", "Yasumi", "-", ""]:
                                     cur.execute("INSERT INTO escala_oficial (quinzena, data, funcionario_id, horario) VALUES (%s, %s, %s, %s)", (quinzena, col, f_id, val))
                     conn.commit()
-                    add_alerta(0, "📣 Nova Escala Publicada / 新しいシフトが公開されました！")
+                    add_alerta(0, "📣 Escala Publicada / 新しいシフトが公開されました！")
                     st.success(t["pub_success"])
                     st.session_state['df_final_draft'] = None
                     st.rerun()
         conn.close()
 
     # =========================================================
-    # ABA 6: ESCALA FINAL
+    # ABA 7: ESCALA FINAL
     # =========================================================
     elif aba == t["menu_final"]:
         st.title(t["menu_final"])
@@ -515,7 +541,7 @@ else:
         conn.close()
 
     # =========================================================
-    # ABA 7: MERCADO DE TROCAS
+    # ABA 8: MERCADO DE TROCAS
     # =========================================================
     elif aba == t["menu_swap"]:
         st.title(t["menu_swap"])
@@ -547,7 +573,7 @@ else:
                 cur.execute("INSERT INTO trocas_turno (turno_id, solicitante_id, alvo_id, tipo) VALUES (%s, %s, %s, %s)", (id_t_sel, st.session_state['user_id'], alvo_id, tipo))
                 conn.commit()
                 if alvo_id: add_alerta(alvo_id, f"🔄 {st.session_state['user_nome']}: {data_t_sel}")
-                else: add_alerta(0, f"🔄 Turno Aberto / オープンシフト: {data_t_sel} - {st.session_state['user_nome']}")
+                else: add_alerta(0, f"🔄 Turno Aberto: {data_t_sel} - {st.session_state['user_nome']}")
                 st.success("✅")
 
         st.divider()
@@ -580,26 +606,31 @@ else:
                         h_total = sum([calc_horas_str(x[0]) for x in cur.fetchall()])
                         if h_total + h_add > limite:
                             bloqueio = True
-                            st.error(f"❌ Limite de {limite}h excedido / 制限時間を超えています.")
+                            st.error(f"❌ Limite de {limite}h excedido.")
                     
                     if not bloqueio:
                         cur.execute("UPDATE trocas_turno SET status='concluida', alvo_id=%s, data_conclusao=CURRENT_TIMESTAMP WHERE id=%s", (st.session_state['user_id'], d[0]))
                         cur.execute("UPDATE escala_oficial SET funcionario_id=%s WHERE id=(SELECT turno_id FROM trocas_turno WHERE id=%s)", (st.session_state['user_id'], d[0]))
                         conn.commit()
-                        add_alerta(d[4], f"✅ {st.session_state['user_nome']} aceitou / 承諾しました - {d[1]}.")
+                        add_alerta(d[4], f"✅ {st.session_state['user_nome']} aceitou - {d[1]}.")
                         st.success("✅")
                         st.rerun()
         else: st.info("-")
         conn.close()
 
     # =========================================================
-    # ABA 8: EQUIPE (GERENTES)
+    # ABA 9: EQUIPE (GERENTES) - COM NOVO FORMATO DE ESTUDANTE
     # =========================================================
     elif aba == t["menu_staff"] and st.session_state['role'] in ['manager', 'tester']:
         st.title(t["menu_staff"])
         conn = get_conn()
         df = pd.read_sql_query("SELECT id, codigo, nome, nivel, role, is_student FROM funcionarios", conn)
-        st.dataframe(df[["codigo", "nome", "nivel", "role", "is_student"]], hide_index=True, use_container_width=True)
+        
+        # Mapeando 1 e 0 para Sim/Não de forma limpa usando a tradução
+        df_show = df[["codigo", "nome", "nivel", "role", "is_student"]].copy()
+        df_show["is_student"] = df_show["is_student"].apply(lambda x: t["yes"] if x == 1 else t["no"])
+        
+        st.dataframe(df_show.rename(columns={"is_student": t["staff_stud"]}), hide_index=True, use_container_width=True)
 
         if st.session_state['role'] == 'manager':
             with st.expander(t["staff_add"]):
@@ -648,15 +679,15 @@ else:
         conn.close()
 
     # =========================================================
-    # ABA 9: MUDAR SENHA (STAFF)
+    # ABA 10: MUDAR SENHA (STAFF)
     # =========================================================
     elif aba == t["change_pass"]:
         st.title(t["change_pass"])
         with st.form("form_change_pass"):
-            s_ant = st.text_input("Atual / 現在の:", type="password")
-            n_sen = st.text_input("Nova / 新しい (mín 6):", type="password")
-            c_sen = st.text_input("Confirme / 確認:", type="password")
-            if st.form_submit_button("Salvar / 保存"):
+            s_ant = st.text_input("Atual:", type="password")
+            n_sen = st.text_input("Nova (mín 6):", type="password")
+            c_sen = st.text_input("Confirme:", type="password")
+            if st.form_submit_button("Salvar"):
                 conn = get_conn()
                 cur = conn.cursor()
                 cur.execute("SELECT senha FROM funcionarios WHERE id=%s", (st.session_state['user_id'],))
