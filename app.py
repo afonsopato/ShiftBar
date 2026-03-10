@@ -11,14 +11,13 @@ import math
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Sick渋谷 - Shift Manager", page_icon="🍻", layout="wide")
 
-# --- 2. BANCO DE DADOS (ERP COMPLETO) ---
+# --- 2. BANCO DE DADOS (ERP) ---
 def get_conn():
     return psycopg2.connect(st.secrets["DATABASE_URL"])
 
 def criar_banco_de_dados():
     conn = get_conn()
     cursor = conn.cursor()
-    
     cursor.execute('''CREATE TABLE IF NOT EXISTS funcionarios (id SERIAL PRIMARY KEY, codigo VARCHAR UNIQUE, nome VARCHAR NOT NULL, nivel VARCHAR NOT NULL, role VARCHAR DEFAULT 'staff', senha VARCHAR NOT NULL, primeiro_acesso INTEGER DEFAULT 1, is_student INTEGER DEFAULT 0)''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS disponibilidades (id SERIAL PRIMARY KEY, funcionario_id INTEGER, data VARCHAR NOT NULL, status VARCHAR NOT NULL, hora_inicio VARCHAR, hora_fim VARCHAR, UNIQUE(funcionario_id, data))''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS limites_semanais (id SERIAL PRIMARY KEY, funcionario_id INTEGER, quinzena_inicio VARCHAR, limite INTEGER, UNIQUE(funcionario_id, quinzena_inicio))''')
@@ -31,8 +30,7 @@ def criar_banco_de_dados():
     if not cursor.fetchone(): cursor.execute("ALTER TABLE funcionarios ADD COLUMN is_student INTEGER DEFAULT 0")
     
     cursor.execute("SELECT COUNT(*) FROM funcionarios")
-    if cursor.fetchone()[0] == 0:
-        cursor.execute("INSERT INTO funcionarios (codigo, nome, nivel, role, senha, primeiro_acesso, is_student) VALUES ('admin', 'Gerente Master', 'Veteran', 'manager', 'sick1234', 1, 0)")
+    if cursor.fetchone()[0] == 0: cursor.execute("INSERT INTO funcionarios (codigo, nome, nivel, role, senha, primeiro_acesso, is_student) VALUES ('admin', 'Gerente Master', 'Veteran', 'manager', 'sick1234', 1, 0)")
     
     conn.commit()
     cursor.close()
@@ -93,28 +91,73 @@ def add_alerta(user_id, msg):
     cur.execute("INSERT INTO alertas (usuario_id, mensagem) VALUES (%s, %s)", (user_id, msg))
     conn.commit()
     cur.close()
+    conn.close()
 
-# --- LÓGICA DE ALERTAS AUTOMÁTICOS ---
+# --- ALERTAS AUTOMÁTICOS (CRON) ---
 hoje = datetime.date.today()
 if hoje.day == 13: add_alerta(0, "⚠️ Lembrete: O envio da escala da próxima quinzena encerra amanhã (Dia 14) às 23:59!")
 if hoje.day == 14: add_alerta(-1, "⚠️ Atenção Gerência: Amanhã começa a nova quinzena. Verifique quem não enviou.")
 if hoje.day == 28: add_alerta(0, "⚠️ Lembrete: O envio da escala da próxima quinzena encerra amanhã às 23:59!")
 
-# --- 3. LOGIN E ROTEAMENTO ---
+# --- 3. DICIONÁRIO DE IDIOMAS COMPLETO ---
 if 'idioma' not in st.session_state: st.session_state['idioma'] = 'Português'
 if 'logado' not in st.session_state: st.session_state['logado'] = False
 
-t = {
-    "menu_shift": "📝 Enviar Escala", "menu_vacation": "🌴 Férias Escolares", "menu_final": "📅 Escala Final", 
-    "menu_swap": "🔄 Trocas", "menu_alerts": "🔔 Alertas", "menu_gen": "⚙️ Gerar & Publicar", 
-    "menu_staff": "👥 Equipe", "menu_history": "📜 Histórico de Férias"
-}
+idioma_selecionado = st.sidebar.radio("Language / 言語 / Idioma", ["Português", "English", "日本語"])
+st.session_state['idioma'] = idioma_selecionado
 
+textos = {
+    "Português": {
+        "login_title": "🍻 Sick渋谷 - Portal", "code": "Código:", "pass": "Senha:", "btn_login": "Entrar", "err_login": "❌ Login inválido.",
+        "new_pass_title": "🔒 Alterar Senha", "new_pass": "Nova Senha (mín 6):", "conf_pass": "Confirme:", "btn_update_pass": "Atualizar", "err_pass": "⚠️ Senhas curtas ou diferentes.", "success_pass": "✅ Senha atualizada!",
+        "menu_shift": "📝 Enviar Escala", "menu_vacation": "🌴 Férias Escolares", "menu_final": "📅 Escala Final", "menu_swap": "🔄 Trocas", "menu_alerts": "🔔 Alertas", "menu_gen": "⚙️ Gerar & Publicar", "menu_history": "📜 Histórico Férias", "menu_staff": "👥 Equipe", "change_pass": "🔑 Mudar Senha", "logout": "🚪 Sair",
+        "lbl_month": "Mês:", "lbl_period": "Período:", "p1": "Dia 1 ao 15", "p2": "Dia 16 ao final", "limit_tog": "Limitar horas semanais?", "limit_hrs": "Máximo de horas (Semana):", "conf_zero": "⚠️ Confirmo que NÃO vou trabalhar (0h).", "err_zero": "❌ Marque a confirmação de 0 horas.",
+        "status_work": "Trabalhar", "status_yas": "Yasumi (Folga)", "in": "Entrada:", "out": "Saída:", "btn_submit": "Enviar Escala", "msg_saved": "✅ Salvo com sucesso!",
+        "vac_info": "Limite sobe de 28h para 40h. **Envie a foto do documento para o gerente!**", "vac_start": "Início:", "vac_end": "Retorno:", "btn_vac": "Lançar Pedido", "msg_vac": "✅ Pedido enviado!",
+        "alert_pend": "📋 Aprovações Pendentes", "chk_verify": "Confirmo que verifiquei o documento de", "btn_apr": "Aprovar", "btn_rej": "Recusar", "inbox": "Sua Caixa de Entrada", "btn_read": "Lida", "no_alerts": "Sem novos alertas.",
+        "gen_btn": "1. Gerar Rascunho via IA", "gen_edit": "✍️ 2. Edição Manual", "btn_pub": "3. Validar e Publicar", "pub_success": "✅ Escala Publicada!",
+        "swap_give": "1. Passar meu Turno", "swap_which": "Qual turno passar?", "swap_type": "Como trocar?", "swap_free": "Livre", "swap_spec": "Pessoa Específica", "swap_who": "Para quem?", "btn_swap_req": "Solicitar Troca",
+        "swap_pend": "2. Meus Pedidos", "btn_cancel": "Cancelar", "swap_avail": "3. Assumir Turnos", "btn_accept": "Aceitar",
+        "staff_add": "➕ Adicionar", "staff_name": "Nome:", "staff_lvl": "Nível:", "staff_role": "Conta:", "staff_stud": "Estudante (28h)", "btn_create": "Criar",
+        "staff_edit": "✏️ Editar", "btn_save": "Salvar", "staff_del": "🗑️ Excluir", "btn_del": "Excluir Permanentemente"
+    },
+    "English": {
+        "login_title": "🍻 Sick渋谷 - Portal", "code": "Code:", "pass": "Password:", "btn_login": "Login", "err_login": "❌ Invalid login.",
+        "new_pass_title": "🔒 Change Password", "new_pass": "New Pass (min 6):", "conf_pass": "Confirm:", "btn_update_pass": "Update", "err_pass": "⚠️ Passwords mismatch/too short.", "success_pass": "✅ Password updated!",
+        "menu_shift": "📝 Submit Shift", "menu_vacation": "🌴 School Vacation", "menu_final": "📅 Final Schedule", "menu_swap": "🔄 Swaps", "menu_alerts": "🔔 Alerts", "menu_gen": "⚙️ Generate & Publish", "menu_history": "📜 Vacation History", "menu_staff": "👥 Staff", "change_pass": "🔑 Change Password", "logout": "🚪 Logout",
+        "lbl_month": "Month:", "lbl_period": "Period:", "p1": "1st to 15th", "p2": "16th to End", "limit_tog": "Limit weekly hours?", "limit_hrs": "Max hours (Week):", "conf_zero": "⚠️ I confirm I will NOT work (0h).", "err_zero": "❌ Please check the 0 hours confirmation.",
+        "status_work": "Available", "status_yas": "Yasumi (Off)", "in": "In:", "out": "Out:", "btn_submit": "Submit Shift", "msg_saved": "✅ Saved successfully!",
+        "vac_info": "Limit increases to 40h. **Send document photo to manager!**", "vac_start": "Start:", "vac_end": "Return:", "btn_vac": "Request", "msg_vac": "✅ Request sent!",
+        "alert_pend": "📋 Pending Approvals", "chk_verify": "I verify the document of", "btn_apr": "Approve", "btn_rej": "Reject", "inbox": "Inbox", "btn_read": "Read", "no_alerts": "No new alerts.",
+        "gen_btn": "1. AI Draft Generation", "gen_edit": "✍️ 2. Manual Edit", "btn_pub": "3. Validate & Publish", "pub_success": "✅ Published!",
+        "swap_give": "1. Pass my Shift", "swap_which": "Which shift?", "swap_type": "How to swap?", "swap_free": "Free (Anyone)", "swap_spec": "Specific Person", "swap_who": "Who?", "btn_swap_req": "Request Swap",
+        "swap_pend": "2. My Requests", "btn_cancel": "Cancel", "swap_avail": "3. Take Shifts", "btn_accept": "Accept",
+        "staff_add": "➕ Add", "staff_name": "Name:", "staff_lvl": "Level:", "staff_role": "Account:", "staff_stud": "Student (28h)", "btn_create": "Create",
+        "staff_edit": "✏️ Edit", "btn_save": "Save", "staff_del": "🗑️ Delete", "btn_del": "Delete Permanently"
+    },
+    "日本語": {
+        "login_title": "🍻 Sick渋谷 - ポータル", "code": "コード:", "pass": "パスワード:", "btn_login": "ログイン", "err_login": "❌ エラー",
+        "new_pass_title": "🔒 パスワード変更", "new_pass": "新しいパスワード:", "conf_pass": "確認:", "btn_update_pass": "更新", "err_pass": "⚠️ 一致しません。", "success_pass": "✅ 更新完了！",
+        "menu_shift": "📝 シフト提出", "menu_vacation": "🌴 学校の休暇", "menu_final": "📅 確定シフト", "menu_swap": "🔄 交換", "menu_alerts": "🔔 通知", "menu_gen": "⚙️ シフト作成", "menu_history": "📜 休暇履歴", "menu_staff": "👥 スタッフ", "change_pass": "🔑 PW変更", "logout": "🚪 ログアウト",
+        "lbl_month": "月:", "lbl_period": "期間:", "p1": "1日〜15日", "p2": "16日〜月末", "limit_tog": "週の時間を制限?", "limit_hrs": "最大時間 (週):", "conf_zero": "⚠️ 0時間であることを確認しました。", "err_zero": "❌ 0時間の確認にチェックを入れてください。",
+        "status_work": "出勤", "status_yas": "休み", "in": "開始:", "out": "終了:", "btn_submit": "提出", "msg_saved": "✅ 保存しました！",
+        "vac_info": "上限が40時間に増えます。**マネージャーに書類の写真を送ってください！**", "vac_start": "開始:", "vac_end": "戻る:", "btn_vac": "申請", "msg_vac": "✅ 送信完了！",
+        "alert_pend": "📋 承認待ち", "chk_verify": "書類を確認しました: ", "btn_apr": "承認", "btn_rej": "拒否", "inbox": "受信トレイ", "btn_read": "既読", "no_alerts": "新しい通知はありません。",
+        "gen_btn": "1. AIシフト作成", "gen_edit": "✍️ 2. 手動編集", "btn_pub": "3. 検証と公開", "pub_success": "✅ 公開完了！",
+        "swap_give": "1. シフトを渡す", "swap_which": "どのシフト？", "swap_type": "交換方法は？", "swap_free": "誰でも", "swap_spec": "特定の人", "swap_who": "誰に？", "btn_swap_req": "リクエスト",
+        "swap_pend": "2. 保留中のリクエスト", "btn_cancel": "キャンセル", "swap_avail": "3. シフトを受ける", "btn_accept": "承諾",
+        "staff_add": "➕ 追加", "staff_name": "名前:", "staff_lvl": "レベル:", "staff_role": "権限:", "staff_stud": "学生 (28h)", "btn_create": "作成",
+        "staff_edit": "✏️ 編集", "btn_save": "保存", "staff_del": "🗑️ 削除", "btn_del": "完全に削除"
+    }
+}
+t = textos[st.session_state['idioma']]
+
+# --- 4. ROTEAMENTO E LOGIN ---
 if not st.session_state['logado']:
-    st.title("🍻 Sick渋谷 - Portal")
+    st.title(t["login_title"])
     with st.form("login"):
-        cod, sen = st.text_input("Código de Acesso:").strip().lower(), st.text_input("Senha:", type="password")
-        if st.form_submit_button("Entrar"):
+        cod, sen = st.text_input(t["code"]).strip().lower(), st.text_input(t["pass"], type="password")
+        if st.form_submit_button(t["btn_login"]):
             conn = get_conn()
             cur = conn.cursor()
             cur.execute("SELECT id, nome, role, is_student, primeiro_acesso FROM funcionarios WHERE LOWER(codigo)=%s AND senha=%s", (cod, sen))
@@ -124,13 +167,13 @@ if not st.session_state['logado']:
             if user:
                 st.session_state.update({'logado': True, 'user_id': user[0], 'user_nome': user[1], 'role': user[2], 'is_student': user[3], 'primeiro_acesso': user[4]})
                 st.rerun()
-            else: st.error("❌ Login inválido.")
+            else: st.error(t["err_login"])
 
 elif st.session_state['primeiro_acesso'] == 1:
-    st.title("🔒 Primeiro Acesso: Altere sua Senha")
+    st.title(t["new_pass_title"])
     with st.form("form_troca_senha"):
-        n_senha, c_senha = st.text_input("Nova Senha (mín. 6):", type="password"), st.text_input("Confirme a Senha:", type="password")
-        if st.form_submit_button("Atualizar Senha"):
+        n_senha, c_senha = st.text_input(t["new_pass"], type="password"), st.text_input(t["conf_pass"], type="password")
+        if st.form_submit_button(t["btn_update_pass"]):
             if len(n_senha) >= 6 and n_senha == c_senha:
                 conn = get_conn()
                 cur = conn.cursor()
@@ -140,12 +183,11 @@ elif st.session_state['primeiro_acesso'] == 1:
                 conn.close()
                 st.session_state['primeiro_acesso'] = 0
                 st.rerun()
-            else: st.error("⚠️ Senhas não coincidem ou são curtas.")
+            else: st.error(t["err_pass"])
 
 else:
-    # --- MENU LATERAL ---
     st.sidebar.title(f"Sick渋谷 | 👤 {st.session_state['user_nome']}")
-    if st.sidebar.button("🚪 Sair"):
+    if st.sidebar.button(t["logout"]):
         st.session_state.clear()
         st.rerun()
 
@@ -155,9 +197,9 @@ else:
     if st.session_state['role'] == 'staff': 
         menus.insert(0, t["menu_shift"])
         if st.session_state.get('is_student') == 1: menus.insert(1, t["menu_vacation"])
-        menus.append("🔑 Mudar Senha")
+        menus.append(t["change_pass"])
     
-    aba = st.sidebar.radio("Menu Principal", menus)
+    aba = st.sidebar.radio("Menu", menus)
 
     # =========================================================
     # ABA 1: ENVIAR ESCALA
@@ -167,24 +209,24 @@ else:
         opcoes_mes = [(hoje.replace(day=1) + timedelta(days=31*i)).replace(day=1) for i in range(3)]
         nomes_meses = [f"{m.strftime('%B %Y')}" for m in opcoes_mes]
         col1, col2 = st.columns(2)
-        mes_selecionado_str = col1.selectbox("Mês:", nomes_meses)
-        quinzena = col2.radio("Período:", ["Dia 1 ao 15", "Dia 16 ao final do mês"])
+        mes_selecionado_str = col1.selectbox(t["lbl_month"], nomes_meses)
+        quinzena = col2.radio(t["lbl_period"], [t["p1"], t["p2"]])
         
         idx_mes = nomes_meses.index(mes_selecionado_str)
         ano, mes = opcoes_mes[idx_mes].year, opcoes_mes[idx_mes].month
-        if quinzena == "Dia 1 ao 15": dia_inicio, dia_fim = 1, 15
+        if quinzena == t["p1"]: dia_inicio, dia_fim = 1, 15
         else: dia_inicio, dia_fim = 16, calendar.monthrange(ano, mes)[1] 
         data_inicio_str = f"{ano}-{mes:02d}-{dia_inicio:02d}"
 
         st.divider()
         is_stud = (st.session_state.get('is_student', 0) == 1)
-        st.markdown("### ⏱️ Restrições de Horas Semanais")
-        limite_ativo = st.toggle("Limitar horas na semana?", value=True if is_stud else False, disabled=is_stud)
+        st.markdown(f"### ⏱️ {t['limit_tog']}")
+        limite_ativo = st.toggle(t["limit_tog"], value=True if is_stud else False, disabled=is_stud)
         limite_horas = None
         confirma_zero = False
         if limite_ativo:
-            limite_horas = st.number_input("Máximo de horas (Semana):", min_value=0, max_value=28 if is_stud else 48, value=0, step=1)
-            if limite_horas == 0: confirma_zero = st.checkbox("⚠️ Confirmo que NÃO vou trabalhar (0 horas) nesta quinzena.")
+            limite_horas = st.number_input(t["limit_hrs"], min_value=0, max_value=28 if is_stud else 48, value=0, step=1)
+            if limite_horas == 0: confirma_zero = st.checkbox(t["conf_zero"])
         st.divider()
 
         respostas = {}
@@ -193,15 +235,15 @@ else:
             opcoes_horas = get_horarios_permitidos(data_atual)
             st.markdown(f"### {data_atual.strftime('%d (%A)')} - *Max: {opcoes_horas[-1]}*")
             c1, c2, c3 = st.columns([1.5, 1, 1])
-            status = c1.radio(f"Status - {dia}", ["Trabalhar", "Yasumi (Folga)"], index=1, key=f"status_{dia}", horizontal=True, label_visibility="collapsed")
-            bloquear = (status == "Yasumi (Folga)")
-            hora_in = c2.selectbox("Entrada:", opcoes_horas, index=0, disabled=bloquear, key=f"in_{dia}")
-            hora_out = c3.selectbox("Saída:", opcoes_horas, index=len(opcoes_horas)-1, disabled=bloquear, key=f"out_{dia}")
+            status = c1.radio(f"Status - {dia}", [t["status_work"], t["status_yas"]], index=1, key=f"status_{dia}", horizontal=True, label_visibility="collapsed")
+            bloquear = (status == t["status_yas"])
+            hora_in = c2.selectbox(t["in"], opcoes_horas, index=0, disabled=bloquear, key=f"in_{dia}")
+            hora_out = c3.selectbox(t["out"], opcoes_horas, index=len(opcoes_horas)-1, disabled=bloquear, key=f"out_{dia}")
             respostas[dia] = {"data": f"{ano}-{mes:02d}-{dia:02d}", "status": "yasumi" if bloquear else "disponivel", "in": "" if bloquear else hora_in, "out": "" if bloquear else hora_out}
             st.markdown("---")
             
-        if st.button("Enviar Escala", use_container_width=True):
-            if limite_ativo and limite_horas == 0 and not confirma_zero: st.error("❌ Você selecionou 0 horas. Marque a caixa de confirmação.")
+        if st.button(t["btn_submit"], use_container_width=True):
+            if limite_ativo and limite_horas == 0 and not confirma_zero: st.error(t["err_zero"])
             else:
                 conn = get_conn()
                 cur = conn.cursor()
@@ -211,24 +253,24 @@ else:
                 conn.commit()
                 cur.close()
                 conn.close()
-                st.success("✅ Horários salvos com sucesso!")
+                st.success(t["msg_saved"])
 
     # =========================================================
     # ABA 2: FÉRIAS ESCOLARES
     # =========================================================
     elif aba == t["menu_vacation"]:
-        st.title("🌴 Solicitar Férias Escolares")
-        st.info("Limite sobe de 28h para 40h semanais. **Obrigatório enviar foto do documento para o gerente via LINE/WhatsApp!**")
+        st.title(t["menu_vacation"])
+        st.info(t["vac_info"])
         with st.form("form_ferias"):
-            d_inicio, d_fim = st.date_input("Data de Início"), st.date_input("Retorno às Aulas")
-            if st.form_submit_button("Lançar Pedido"):
+            d_inicio, d_fim = st.date_input(t["vac_start"]), st.date_input(t["vac_end"])
+            if st.form_submit_button(t["btn_vac"]):
                 conn = get_conn()
                 conn.cursor().execute("INSERT INTO ferias_estudante (funcionario_id, data_inicio, data_fim) VALUES (%s, %s, %s)", (st.session_state['user_id'], str(d_inicio), str(d_fim)))
                 conn.commit()
-                add_alerta(-1, f"🔔 {st.session_state['user_nome']} solicitou liberação de férias escolares. Aguardando foto do doc.")
-                st.success("✅ Pedido enviado! Mande o documento para a gerência.")
+                add_alerta(-1, f"🔔 {st.session_state['user_nome']} pediu férias.")
+                st.success(t["msg_vac"])
                 conn.close()
-            
+
     # =========================================================
     # ABA 3: ALERTAS E CAIXA DE ENTRADA
     # =========================================================
@@ -236,31 +278,31 @@ else:
         st.title(t["menu_alerts"])
         conn = get_conn()
         if st.session_state['role'] in ['manager', 'tester']:
-            st.subheader("📋 Aprovações de Férias Pendentes")
+            st.subheader(t["alert_pend"])
             df_ferias = pd.read_sql_query("SELECT f.id, fun.nome, f.data_inicio, f.data_fim, f.funcionario_id FROM ferias_estudante f JOIN funcionarios fun ON f.funcionario_id = fun.id WHERE f.status='pendente'", conn)
             if not df_ferias.empty:
                 for idx, row in df_ferias.iterrows():
                     st.write(f"**{row['nome']}**: {row['data_inicio']} a {row['data_fim']}")
-                    veri = st.checkbox(f"Confirmo que verifiquei o documento escolar de {row['nome']}.", key=f"chk_{row['id']}")
+                    veri = st.checkbox(f"{t['chk_verify']} {row['nome']}.", key=f"chk_{row['id']}")
                     c1, c2 = st.columns([1, 5])
-                    if c1.button("Aprovar", key=f"apr_{row['id']}"):
+                    if c1.button(t["btn_apr"], key=f"apr_{row['id']}"):
                         if veri:
                             cur = conn.cursor()
                             cur.execute("UPDATE ferias_estudante SET status='aprovado', gerente_id=%s, data_resposta=CURRENT_TIMESTAMP WHERE id=%s", (st.session_state['user_id'], row['id']))
                             conn.commit()
-                            add_alerta(row['funcionario_id'], "✅ Férias aprovadas. Limite de 40h liberado!")
+                            add_alerta(row['funcionario_id'], "✅ Férias aprovadas!")
                             st.rerun()
-                        else: st.error("❌ Marque a caixa de verificação.")
-                    if c2.button("Recusar", key=f"rec_{row['id']}"):
+                        else: st.error("❌")
+                    if c2.button(t["btn_rej"], key=f"rec_{row['id']}"):
                         cur = conn.cursor()
                         cur.execute("UPDATE ferias_estudante SET status='rejeitado', gerente_id=%s, data_resposta=CURRENT_TIMESTAMP WHERE id=%s", (st.session_state['user_id'], row['id']))
                         conn.commit()
                         add_alerta(row['funcionario_id'], "❌ Férias negadas.")
                         st.rerun()
                     st.divider()
-            else: st.info("Nada pendente.")
+            else: st.info("-")
             
-        st.subheader("Sua Caixa de Entrada")
+        st.subheader(t["inbox"])
         q_user = 0 if st.session_state['role'] == 'staff' else -1
         cur = conn.cursor()
         cur.execute("SELECT id, mensagem, data_criacao FROM alertas WHERE usuario_id IN (%s, %s, %s) AND lida=0 ORDER BY id DESC", (st.session_state['user_id'], 0, q_user))
@@ -269,11 +311,11 @@ else:
             for a in alertas:
                 c1, c2 = st.columns([4, 1])
                 c1.warning(f"[{a[2].strftime('%d/%m %H:%M')}] {a[1]}")
-                if c2.button("Lida", key=f"l_{a[0]}"):
+                if c2.button(t["btn_read"], key=f"l_{a[0]}"):
                     cur.execute("UPDATE alertas SET lida=1 WHERE id=%s", (a[0],))
                     conn.commit()
                     st.rerun()
-        else: st.success("Sem novos alertas.")
+        else: st.success(t["no_alerts"])
         conn.close()
 
     # =========================================================
@@ -292,12 +334,12 @@ else:
         opcoes_mes = [(hoje.replace(day=1) + timedelta(days=31*i)).replace(day=1) for i in range(3)]
         nomes_meses = [f"{m.strftime('%B %Y')}" for m in opcoes_mes]
         col1, col2 = st.columns(2)
-        mes_selecionado_str = col1.selectbox("Mês:", nomes_meses, key="gen_mes")
-        quinzena = col2.radio("Período:", ["Dia 1 ao 15", "Dia 16 ao final do mês"], key="gen_quinzena")
+        mes_selecionado_str = col1.selectbox(t["lbl_month"], nomes_meses, key="gen_mes")
+        quinzena = col2.radio(t["lbl_period"], [t["p1"], t["p2"]], key="gen_quinzena")
         
         idx_mes = nomes_meses.index(mes_selecionado_str)
         ano, mes = opcoes_mes[idx_mes].year, opcoes_mes[idx_mes].month
-        if quinzena == "Dia 1 ao 15": data_inicio_str, data_fim_str = f"{ano}-{mes:02d}-01", f"{ano}-{mes:02d}-15"
+        if quinzena == t["p1"]: data_inicio_str, data_fim_str = f"{ano}-{mes:02d}-01", f"{ano}-{mes:02d}-15"
         else: data_inicio_str, data_fim_str = f"{ano}-{mes:02d}-16", f"{ano}-{mes:02d}-{calendar.monthrange(ano, mes)[1]:02d}"
 
         conn = get_conn()
@@ -311,8 +353,8 @@ else:
         # --- A MATEMÁTICA PESADA DA IA ---
         if 'df_final_draft' not in st.session_state: st.session_state['df_final_draft'] = None
 
-        if st.button("1. Gerar Rascunho via Inteligência Artificial", use_container_width=True):
-            if df_disp.empty: st.warning("Ninguém enviou horários.")
+        if st.button(t["gen_btn"], use_container_width=True):
+            if df_disp.empty: st.warning("Ninguém enviou horários / 提出者がいません / No one submitted.")
             else:
                 horas_oferecidas = {}
                 for _, row in df_disp[df_disp['status'] == 'disponivel'].iterrows():
@@ -343,11 +385,11 @@ else:
                     week_num = data_obj.isocalendar()[1]
                     horarios_do_dia = get_horarios_permitidos(data_obj)
                     
-                    trabalhando_no_slot, slots_atr = {t: [] for t in horarios_do_dia}, {f_id: [] for f_id in dict_nomes.keys()}
+                    trabalhando_no_slot, slots_atr = {tm: [] for tm in horarios_do_dia}, {f_id: [] for f_id in dict_nomes.keys()}
                     for _, r in disp_dia[disp_dia['status'] == 'yasumi'].iterrows(): matriz_escala[r['funcionario_id']][dia] = "Yasumi"
                         
                     disp_trabalho = disp_dia[disp_dia['status'] == 'disponivel']
-                    livre_no_slot = {t: [] for t in horarios_do_dia}
+                    livre_no_slot = {tm: [] for tm in horarios_do_dia}
                     for _, r in disp_trabalho.iterrows():
                         for s in get_slot_list(r['hora_inicio'], r['hora_fim']):
                             if s in livre_no_slot: livre_no_slot[s].append(r['funcionario_id'])
@@ -397,18 +439,15 @@ else:
                 df_pivot.rename(columns={'index': 'id'}, inplace=True)
                 df_final = pd.merge(df_staff[['id', 'nome', 'nivel']], df_pivot, on='id', how='right')
                 st.session_state['df_final_draft'] = df_final.dropna(thresh=3).fillna("-")
-                st.success("Rascunho gerado! Edite na tabela abaixo.")
 
         # --- O EDITOR DE DADOS ---
         if st.session_state.get('df_final_draft') is not None:
             st.divider()
-            st.subheader("✍️ 2. Edição Manual (Malha Fina)")
-            st.write("Dê dois cliques nas células para alterar os horários. Quando terminar, valide e publique.")
+            st.subheader(t["gen_edit"])
             df_editado = st.data_editor(st.session_state['df_final_draft'], hide_index=True, key="editor_escala")
             
-            if st.button("3. Validar e Publicar Escala 🚀", type="primary"):
+            if st.button(t["btn_pub"], type="primary"):
                 erros, avisos = [], []
-                
                 df_ferias = pd.read_sql_query("SELECT funcionario_id, data_inicio, data_fim FROM ferias_estudante WHERE status='aprovado'", conn)
                 
                 for _, row in df_editado.iterrows():
@@ -418,7 +457,6 @@ else:
                     limite_voluntario = dict_limites.get(f_id, 999)
                     
                     horas_por_semana_edit = {}
-                    
                     for col in df_editado.columns:
                         if "20" in col: 
                             val = row[col]
@@ -428,7 +466,7 @@ else:
                             
                             status_bd = df_disp[(df_disp['funcionario_id'] == f_id) & (df_disp['data'] == col)]['status'].values
                             if len(status_bd) > 0 and status_bd[0] == 'yasumi' and h_dia > 0:
-                                avisos.append(f"⚠️ {f_nome} está escalado em {col} mas havia pedido Yasumi!")
+                                avisos.append(f"⚠️ {f_nome}: Escalado em dia de Yasumi ({col})!")
                             
                             horas_por_semana_edit[w_num] = horas_por_semana_edit.get(w_num, 0) + h_dia
                     
@@ -437,19 +475,15 @@ else:
                             tem_ferias = False
                             if not df_ferias[df_ferias['funcionario_id'] == f_id].empty: tem_ferias = True
                             limite_legal = 40 if tem_ferias else 28
-                            
-                            if total_h > limite_legal:
-                                erros.append(f"❌ ERRO LEGAL: Estudante {f_nome} ultrapassa {limite_legal}h na semana {w_num} (Total: {total_h}h).")
-                        
-                        if total_h > limite_voluntario:
-                            avisos.append(f"⚠️ {f_nome} pediu limite de {limite_voluntario}h, mas foi escalado para {total_h}h na semana {w_num}.")
+                            if total_h > limite_legal: erros.append(f"❌ ERRO/エラー: Estudante {f_nome} > {limite_legal}h (W{w_num}: {total_h}h).")
+                        if total_h > limite_voluntario: avisos.append(f"⚠️ {f_nome}: > {limite_voluntario}h (W{w_num}: {total_h}h).")
 
                 if len(erros) > 0:
                     for e in erros: st.error(e)
                     st.stop()
                 elif len(avisos) > 0 and not st.session_state.get('confirmar_avisos', False):
                     for a in avisos: st.warning(a)
-                    st.checkbox("Confirmo as inconsistências acima e assumo o risco de publicar.", key="confirmar_avisos")
+                    st.checkbox("Confirmo os riscos / リスクを承知しました", key="confirmar_avisos")
                     st.stop()
                 else:
                     cur = conn.cursor()
@@ -461,23 +495,21 @@ else:
                                 if val not in ["Folga", "Yasumi", "-", ""]:
                                     cur.execute("INSERT INTO escala_oficial (quinzena, data, funcionario_id, horario) VALUES (%s, %s, %s, %s)", (quinzena, col, f_id, val))
                     conn.commit()
-                    add_alerta(0, f"📣 A Escala da {quinzena} de {mes_selecionado_str} foi publicada! Confira a aba Escala Final.")
-                    st.success("✅ Escala Publicada Oficialmente!")
+                    add_alerta(0, "📣 Nova Escala Publicada / 新しいシフトが公開されました！")
+                    st.success(t["pub_success"])
                     st.session_state['df_final_draft'] = None
                     st.rerun()
         conn.close()
+
     # =========================================================
     # ABA 6: ESCALA FINAL
     # =========================================================
     elif aba == t["menu_final"]:
-        st.title("📅 Escala Oficial do Bar")
-        st.write("Abaixo está a escala definitiva publicada pelos gerentes.")
+        st.title(t["menu_final"])
         conn = get_conn()
         df_oficial = pd.read_sql_query("SELECT o.data, f.nome, o.horario FROM escala_oficial o JOIN funcionarios f ON o.funcionario_id = f.id ORDER BY o.data", conn)
-        if df_oficial.empty: 
-            st.info("Nenhuma escala oficial publicada ainda.")
+        if df_oficial.empty: st.info("-")
         else:
-            # Transforma em Pivot (Tabela Cruzada) para visualização bonita
             df_pivot = df_oficial.pivot(index='nome', columns='data', values='horario').fillna("-")
             st.dataframe(df_pivot, use_container_width=True)
         conn.close()
@@ -486,193 +518,153 @@ else:
     # ABA 7: MERCADO DE TROCAS
     # =========================================================
     elif aba == t["menu_swap"]:
-        st.title("🔄 Mercado de Trocas")
+        st.title(t["menu_swap"])
         conn = get_conn()
         cur = conn.cursor()
         
-        st.subheader("1. Passar meu Turno")
-        st.write("Selecione um turno seu para oferecer:")
-        
+        st.subheader(t["swap_give"])
         hoje_str = str(datetime.date.today())
-        # Traz apenas turnos a partir de hoje que não são folga
-        cur.execute("SELECT id, data, horario FROM escala_oficial WHERE funcionario_id=%s AND horario NOT IN ('Folga', 'Yasumi', '-', '')", (st.session_state['user_id'],))
+        cur.execute("SELECT id, data, horario FROM escala_oficial WHERE funcionario_id=%s AND horario NOT IN ('Folga', 'Yasumi', '-', '') AND data >= %s", (st.session_state['user_id'], hoje_str))
         meus_t = cur.fetchall()
         
-        if not meus_t: 
-            st.info("Você não tem turnos futuros disponíveis.")
+        if not meus_t: st.info("-")
         else:
-            opcoes_t = [f"{t[1]} ({t[2]})" for t in meus_t]
-            t_sel = st.selectbox("Qual turno você quer passar?", opcoes_t)
+            opcoes_t = [f"{tm[1]} ({tm[2]})" for tm in meus_t]
+            t_sel = st.selectbox(t["swap_which"], opcoes_t)
             idx_sel = opcoes_t.index(t_sel)
-            id_t_sel = meus_t[idx_sel][0]
-            data_t_sel = meus_t[idx_sel][1]
-            horario_str_sel = meus_t[idx_sel][2]
+            id_t_sel, data_t_sel = meus_t[idx_sel][0], meus_t[idx_sel][1]
             
-            tipo = st.radio("Como quer trocar?", ["Livre (Qualquer um)", "Pessoa Específica"])
+            tipo = st.radio(t["swap_type"], [t["swap_free"], t["swap_spec"]])
             alvo_id = None
-            if tipo == "Pessoa Específica":
+            if tipo == t["swap_spec"]:
                 cur.execute("SELECT id, nome FROM funcionarios WHERE id != %s", (st.session_state['user_id'],))
                 cols = cur.fetchall()
                 n_cols = [c[1] for c in cols]
-                alvo_nome = st.selectbox("Para quem?", n_cols)
+                alvo_nome = st.selectbox(t["swap_who"], n_cols)
                 alvo_id = cols[n_cols.index(alvo_nome)][0]
                 
-            if st.button("Solicitar Troca"):
-                # A validação real de 1.5 horas seria implementada aqui convertendo a string de data.
-                # Como a data está em formato exótico "16 (Seg)", liberamos a inserção.
+            if st.button(t["btn_swap_req"]):
                 cur.execute("INSERT INTO trocas_turno (turno_id, solicitante_id, alvo_id, tipo) VALUES (%s, %s, %s, %s)", (id_t_sel, st.session_state['user_id'], alvo_id, tipo))
                 conn.commit()
-                if alvo_id: add_alerta(alvo_id, f"🔄 {st.session_state['user_nome']} pediu para trocar o turno de {data_t_sel} ({horario_str_sel}) com você.")
-                else: add_alerta(0, f"🔄 Turno Aberto no dia {data_t_sel} ({horario_str_sel}) por {st.session_state['user_nome']}.")
-                st.success("Pedido lançado no mercado!")
+                if alvo_id: add_alerta(alvo_id, f"🔄 {st.session_state['user_nome']}: {data_t_sel}")
+                else: add_alerta(0, f"🔄 Turno Aberto / オープンシフト: {data_t_sel} - {st.session_state['user_nome']}")
+                st.success("✅")
 
         st.divider()
-        st.subheader("2. Meus Pedidos Pendentes")
+        st.subheader(t["swap_pend"])
         cur.execute("SELECT t.id, o.data, o.horario FROM trocas_turno t JOIN escala_oficial o ON t.turno_id = o.id WHERE t.solicitante_id=%s AND t.status='pendente'", (st.session_state['user_id'],))
         pendentes = cur.fetchall()
         if pendentes:
             for p in pendentes:
                 c1, c2 = st.columns([3,1])
-                c1.write(f"Turno: {p[1]} ({p[2]})")
-                if c2.button("Cancelar Pedido", key=f"c_{p[0]}"):
+                c1.write(f"{p[1]} ({p[2]})")
+                if c2.button(t["btn_cancel"], key=f"c_{p[0]}"):
                     cur.execute("UPDATE trocas_turno SET status='cancelada' WHERE id=%s", (p[0],))
-                    conn.commit(); add_alerta(0, "Aviso: Uma troca aberta foi cancelada pelo solicitante."); st.rerun()
-        else:
-            st.info("Nenhum pedido seu está aguardando.")
+                    conn.commit(); st.rerun()
+        else: st.info("-")
 
-        st.subheader("3. Assumir Turnos (Disponíveis para mim)")
-        cur.execute("SELECT t.id, o.data, o.horario, f.nome, t.solicitante_id FROM trocas_turno t JOIN escala_oficial o ON t.turno_id = o.id JOIN funcionarios f ON t.solicitante_id = f.id WHERE (t.alvo_id=%s OR t.tipo='Livre (Qualquer um)') AND t.solicitante_id != %s AND t.status='pendente'", (st.session_state['user_id'], st.session_state['user_id']))
+        st.subheader(t["swap_avail"])
+        cur.execute("SELECT t.id, o.data, o.horario, f.nome, t.solicitante_id FROM trocas_turno t JOIN escala_oficial o ON t.turno_id = o.id JOIN funcionarios f ON t.solicitante_id = f.id WHERE (t.alvo_id=%s OR t.tipo=%s) AND t.solicitante_id != %s AND t.status='pendente'", (st.session_state['user_id'], t["swap_free"], st.session_state['user_id']))
         disponiveis = cur.fetchall()
         if disponiveis:
             for d in disponiveis:
                 c1, c2 = st.columns([3,1])
-                c1.write(f"**{d[3]}** passou o turno de **{d[1]} ({d[2]})**.")
-                if c2.button("Aceitar", key=f"a_{d[0]}"):
-                    
+                c1.write(f"**{d[3]}**: {d[1]} ({d[2]})")
+                if c2.button(t["btn_accept"], key=f"a_{d[0]}"):
                     bloqueio = False
-                    # Validação de Estudante ao Aceitar Turno de Última Hora
                     if st.session_state.get('is_student') == 1:
                         h_add = calc_horas_str(d[2])
                         cur.execute("SELECT id FROM ferias_estudante WHERE funcionario_id=%s AND status='aprovado'", (st.session_state['user_id'],))
-                        tem_ferias = cur.fetchone()
-                        limite = 40 if tem_ferias else 28
-                        
+                        limite = 40 if cur.fetchone() else 28
                         cur.execute("SELECT horario FROM escala_oficial WHERE funcionario_id=%s", (st.session_state['user_id'],))
                         h_total = sum([calc_horas_str(x[0]) for x in cur.fetchall()])
-                        
                         if h_total + h_add > limite:
                             bloqueio = True
-                            st.error(f"❌ Aceitar este turno vai ultrapassar seu limite legal de {limite}h. Troca cancelada pelo sistema.")
+                            st.error(f"❌ Limite de {limite}h excedido / 制限時間を超えています.")
                     
                     if not bloqueio:
                         cur.execute("UPDATE trocas_turno SET status='concluida', alvo_id=%s, data_conclusao=CURRENT_TIMESTAMP WHERE id=%s", (st.session_state['user_id'], d[0]))
                         cur.execute("UPDATE escala_oficial SET funcionario_id=%s WHERE id=(SELECT turno_id FROM trocas_turno WHERE id=%s)", (st.session_state['user_id'], d[0]))
                         conn.commit()
-                        add_alerta(d[4], f"✅ {st.session_state['user_nome']} assumiu seu turno dia {d[1]}.")
-                        add_alerta(0, f"🔄 TROCA OFICIALIZADA: {d[3]} passou para {st.session_state['user_nome']} ({d[1]}).")
-                        st.success("Turno assumido! A escala final foi atualizada.")
+                        add_alerta(d[4], f"✅ {st.session_state['user_nome']} aceitou / 承諾しました - {d[1]}.")
+                        st.success("✅")
                         st.rerun()
-        else:
-            st.info("Nenhum turno disponível para você pegar no momento.")
+        else: st.info("-")
         conn.close()
 
     # =========================================================
-    # ABA 8: EQUIPE E GERENCIAMENTO (GERENTES)
+    # ABA 8: EQUIPE (GERENTES)
     # =========================================================
     elif aba == t["menu_staff"] and st.session_state['role'] in ['manager', 'tester']:
-        st.title("👥 Gestão de Equipe")
-        if st.session_state['role'] == 'tester': st.warning("Modo Visualização.")
-        
+        st.title(t["menu_staff"])
         conn = get_conn()
         df = pd.read_sql_query("SELECT id, codigo, nome, nivel, role, is_student FROM funcionarios", conn)
-        df_show = df[["codigo", "nome", "nivel", "role", "is_student"]]
-        st.dataframe(df_show, hide_index=True, use_container_width=True)
+        st.dataframe(df[["codigo", "nome", "nivel", "role", "is_student"]], hide_index=True, use_container_width=True)
 
         if st.session_state['role'] == 'manager':
-            with st.expander("➕ Adicionar Funcionário"):
+            with st.expander(t["staff_add"]):
                 with st.form("form_add"):
-                    nome = st.text_input("Nome:")
-                    nivel = st.selectbox("Nível:", ["Rookie", "Normal", "Veteran"])
-                    tipo_conta = st.selectbox("Conta:", ["Staff", "Manager"])
-                    is_student_input = st.checkbox("Estudante (Visto 28h)")
-                    
-                    if st.form_submit_button("Criar Conta") and nome:
+                    nome = st.text_input(t["staff_name"])
+                    nivel = st.selectbox(t["staff_lvl"], ["Rookie", "Normal", "Veteran"])
+                    tipo_conta = st.selectbox(t["staff_role"], ["Staff", "Manager"])
+                    is_student_input = st.checkbox(t["staff_stud"])
+                    if st.form_submit_button(t["btn_create"]) and nome:
                         cur = conn.cursor()
                         cur.execute("INSERT INTO funcionarios (codigo, nome, nivel, role, senha, primeiro_acesso, is_student) VALUES ('temp', %s, %s, %s, 'sick1234', 1, %s) RETURNING id", (nome, nivel, "manager" if tipo_conta == "Manager" else "staff", 1 if is_student_input else 0))
                         id_novo = cur.fetchone()[0]
                         cur.execute("UPDATE funcionarios SET codigo=%s WHERE id=%s", (f"sk{id_novo:03d}", id_novo))
                         conn.commit()
-                        st.success(f"Criado! Código: sk{id_novo:03d}")
+                        st.success(f"✅ sk{id_novo:03d}")
                         st.rerun()
 
-            with st.expander("✏️ Editar Funcionário"):
+            with st.expander(t["staff_edit"]):
                 if not df.empty:
-                    sel = st.selectbox("Selecione o Funcionário:", (df['nome'] + " (" + df['codigo'] + ")").tolist(), key="sel_edit_staff")
+                    sel = st.selectbox("Selecione:", (df['nome'] + " (" + df['codigo'] + ")").tolist(), key="sel_edit_staff")
                     idx = (df['nome'] + " (" + df['codigo'] + ")").tolist().index(sel)
-                    
                     with st.form("form_edit"):
-                        n_nome = st.text_input("Nome:", value=df.iloc[idx]['nome'])
-                        n_nivel = st.selectbox("Nível:", ["Rookie", "Normal", "Veteran"], index=["Rookie", "Normal", "Veteran"].index(df.iloc[idx]['nivel']))
-                        
-                        is_master_admin = (df.iloc[idx]['codigo'] == 'admin')
-                        n_tipo = st.selectbox("Conta:", ["Staff", "Manager"], index=1 if df.iloc[idx]['role'] == 'manager' else 0, disabled=is_master_admin)
-                        n_student = st.checkbox("Estudante (Visto 28h)", value=bool(df.iloc[idx]['is_student']))
-                        
-                        if st.form_submit_button("Salvar Alterações"):
+                        n_nome = st.text_input(t["staff_name"], value=df.iloc[idx]['nome'])
+                        n_nivel = st.selectbox(t["staff_lvl"], ["Rookie", "Normal", "Veteran"], index=["Rookie", "Normal", "Veteran"].index(df.iloc[idx]['nivel']))
+                        n_tipo = st.selectbox(t["staff_role"], ["Staff", "Manager"], index=1 if df.iloc[idx]['role'] == 'manager' else 0, disabled=(df.iloc[idx]['codigo'] == 'admin'))
+                        n_student = st.checkbox(t["staff_stud"], value=bool(df.iloc[idx]['is_student']))
+                        if st.form_submit_button(t["btn_save"]):
                             cur = conn.cursor()
                             cur.execute("UPDATE funcionarios SET nome=%s, nivel=%s, role=%s, is_student=%s WHERE id=%s", (n_nome, n_nivel, 'manager' if n_tipo == 'Manager' else 'staff', 1 if n_student else 0, int(df.iloc[idx]['id'])))
                             conn.commit()
-                            st.success("Editado com sucesso!")
+                            st.success("✅")
                             st.rerun()
 
-            with st.expander("🗑️ Excluir Funcionário"):
+            with st.expander(t["staff_del"]):
                 df_delete = df[df['codigo'] != 'admin'] 
                 if not df_delete.empty:
-                    sel_del = st.selectbox("Escolha quem apagar:", (df_delete['nome'] + " (" + df_delete['codigo'] + ")").tolist(), key="del_sel")
-                    st.warning("⚠️ Atenção: Apagará o funcionário e todos os históricos dele.")
-                    if st.button("Excluir Permanentemente"):
+                    sel_del = st.selectbox("Selecione:", (df_delete['nome'] + " (" + df_delete['codigo'] + ")").tolist(), key="del_sel")
+                    if st.button(t["btn_del"]):
                         id_alvo = int(df_delete.iloc[(df_delete['nome'] + " (" + df_delete['codigo'] + ")").tolist().index(sel_del)]['id'])
                         cur = conn.cursor()
                         cur.execute("DELETE FROM funcionarios WHERE id=%s", (id_alvo,))
                         cur.execute("DELETE FROM disponibilidades WHERE funcionario_id=%s", (id_alvo,))
-                        cur.execute("DELETE FROM ferias_estudante WHERE funcionario_id=%s", (id_alvo,))
-                        cur.execute("DELETE FROM trocas_turno WHERE solicitante_id=%s OR alvo_id=%s", (id_alvo, id_alvo))
                         conn.commit()
-                        st.success("Excluído com sucesso.")
+                        st.success("✅")
                         st.rerun()
-
-            with st.expander("🔑 Resetar Senha"):
-                df_res = df[df['role'] != 'manager'] 
-                if not df_res.empty:
-                    sel_res = st.selectbox("Funcionário para Reset:", (df_res['nome'] + " (" + df_res['codigo'] + ")").tolist(), key="res_sel")
-                    if st.button("Resetar para 'sick1234'"):
-                        idx_res = (df_res['nome'] + " (" + df_res['codigo'] + ")").tolist().index(sel_res)
-                        cur = conn.cursor()
-                        cur.execute("UPDATE funcionarios SET senha='sick1234', primeiro_acesso=1 WHERE id=%s", (int(df_res.iloc[idx_res]['id']),))
-                        conn.commit()
-                        st.success("Senha resetada.")
         conn.close()
 
     # =========================================================
     # ABA 9: MUDAR SENHA (STAFF)
     # =========================================================
-    elif aba == "🔑 Mudar Senha":
-        st.title("🔑 Alterar Senha")
+    elif aba == t["change_pass"]:
+        st.title(t["change_pass"])
         with st.form("form_change_pass"):
-            s_ant = st.text_input("Senha Atual:", type="password")
-            n_sen = st.text_input("Nova (mín 6):", type="password")
-            c_sen = st.text_input("Confirme a Nova:", type="password")
-            if st.form_submit_button("Salvar Modificação"):
+            s_ant = st.text_input("Atual / 現在の:", type="password")
+            n_sen = st.text_input("Nova / 新しい (mín 6):", type="password")
+            c_sen = st.text_input("Confirme / 確認:", type="password")
+            if st.form_submit_button("Salvar / 保存"):
                 conn = get_conn()
                 cur = conn.cursor()
                 cur.execute("SELECT senha FROM funcionarios WHERE id=%s", (st.session_state['user_id'],))
-                s_bd = cur.fetchone()[0]
-                
-                if s_ant != s_bd: st.error("❌ Erro na senha atual.")
-                elif len(n_sen) < 6 or n_sen != c_sen: st.error("⚠️ Senha inválida ou curta.")
+                if s_ant != cur.fetchone()[0]: st.error("❌ Erro.")
+                elif len(n_sen) < 6 or n_sen != c_sen: st.error("⚠️ Senha inválida.")
                 else:
                     cur.execute("UPDATE funcionarios SET senha=%s WHERE id=%s", (n_sen, st.session_state['user_id']))
                     conn.commit()
-                    st.success("Senha atualizada!")
+                    st.success("✅")
                 cur.close()
                 conn.close()
